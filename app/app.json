@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "KnotCount",
+    "slug": "knotcount",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F4EFE6",
+    "splash": { "image": "./assets/splash-icon.png", "resizeMode": "contain", "backgroundColor": "#F4EFE6" },
+    "plugins": [
+      ["expo-contacts", { "contactsPermission": "KnotCount reads your contacts only when you choose to import guests." }]
+    ],
+    "android": {
+      "package": "com.knotcount.app",
+      "permissions": ["READ_CONTACTS"],
+      "adaptiveIcon": { "backgroundColor": "#7B1E3A", "foregroundImage": "./assets/android-icon-foreground.png" }
+    },
+    "web": { "favicon": "./assets/favicon.png", "bundler": "metro" }
+  }
+}
