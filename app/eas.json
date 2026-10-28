@@ -1,1 +1,9 @@
-{ "build": { "preview": { "android": { "buildType": "apk" } } } }
+{
+  "cli": { "appVersionSource": "local" },
+  "build": {
+    "preview": {
+      "android": { "buildType": "apk" },
+      "env": { "EXPO_PUBLIC_API_URL": "https://knotcount-server.onrender.com" }
+    }
+  }
+}

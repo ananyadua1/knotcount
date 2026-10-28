@@ -7,15 +7,40 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F4EFE6",
-    "splash": { "image": "./assets/splash-icon.png", "resizeMode": "contain", "backgroundColor": "#F4EFE6" },
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F4EFE6"
+    },
     "plugins": [
-      ["expo-contacts", { "contactsPermission": "KnotCount reads your contacts only when you choose to import guests." }]
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "KnotCount reads your contacts only when you choose to import guests."
+        }
+      ]
     ],
     "android": {
       "package": "com.knotcount.app",
-      "permissions": ["READ_CONTACTS"],
-      "adaptiveIcon": { "backgroundColor": "#7B1E3A", "foregroundImage": "./assets/android-icon-foreground.png" }
+      "permissions": [
+        "READ_CONTACTS",
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#7B1E3A",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      }
     },
-    "web": { "favicon": "./assets/favicon.png", "bundler": "metro" }
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "4a0adc26-0ec3-40cd-bf70-640ce64f80c6"
+      }
+    },
+    "owner": "ananyadua"
   }
 }
