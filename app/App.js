@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, Alert, Linking } from 'react-native';
-import { PRIVACY_URL } from './src/api';
+import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -9,40 +8,29 @@ import {
 } from '@expo-google-fonts/inter';
 import { Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { C, F } from './src/theme';
-import { StoreProvider, useStore } from './src/store';
+import { StoreProvider, useStore, couple } from './src/store';
 import { tap } from './src/components/ui';
 import Guests from './src/screens/Guests';
 import Invite from './src/screens/Invite';
 import Auth from './src/screens/Auth';
 import Updates from './src/screens/Updates';
+import Profile from './src/screens/Profile';
 
 const TABS = [
   { k: 'guests', t: 'Guests', icon: 'users' },
   { k: 'invite', t: 'Invitations', icon: 'mail' },
   { k: 'updates', t: 'Activity', icon: 'activity' },
+  { k: 'profile', t: 'Profile', icon: 'user' },
 ];
 
 function Shell() {
   const [tab, setTab] = useState('guests');
   const ins = useSafeAreaInsets();
-  const { booting, authed, logout, deleteAccount, error, loaded } = useStore();
+  const { booting, authed, error, wedding } = useStore();
   const idx = TABS.findIndex((t) => t.k === tab);
   if (booting) return <View style={{ flex: 1, backgroundColor: C.paper }} />;
   if (!authed) return <View style={{ flex: 1, backgroundColor: C.paper, paddingTop: ins.top }}><Auth /></View>;
-  const Screen = { guests: Guests, invite: Invite, updates: Updates }[tab];
-  const confirmDelete = () => Alert.alert(
-    'Delete account?',
-    'This permanently deletes your account, wedding details, guest list and all replies. It cannot be undone.',
-    [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete forever', style: 'destructive', onPress: () => deleteAccount().catch((e) => Alert.alert('Could not delete', e.message)) },
-    ]
-  );
-  const signOut = () => Alert.alert('Account', 'Your guest list stays safe on the server when you sign out.', [
-    { text: 'Privacy policy', onPress: () => Linking.openURL(PRIVACY_URL()) },
-    { text: 'Delete account', style: 'destructive', onPress: confirmDelete },
-    { text: 'Sign out', onPress: logout },
-  ], { cancelable: true });
+  const Screen = { guests: Guests, invite: Invite, updates: Updates, profile: Profile }[tab];
 
   return (
     <View style={{ flex: 1, backgroundColor: C.paper, paddingTop: ins.top }}>
@@ -52,7 +40,10 @@ function Shell() {
             <Image source={require('./assets/mark.png')} style={{ width: 22, height: 22, marginRight: 8 }} />
             <Text style={styles.brand}>KnotCount</Text>
           </View>
-          <Pressable onPress={signOut} hitSlop={10}><Feather name="log-out" size={17} color={C.muted} /></Pressable>
+          <Pressable onPress={() => setTab('profile')} hitSlop={10} style={styles.wedPill}>
+            <Text numberOfLines={1} style={styles.wedT}>{wedding.bride || wedding.groom ? couple(wedding) : 'New wedding'}</Text>
+            <Feather name="chevron-down" size={14} color={C.muted} />
+          </Pressable>
         </View>
         <View style={styles.track}><View style={[styles.fill, { width: `${((idx + 1) / TABS.length) * 100}%` }]} /></View>
       </View>
@@ -89,6 +80,8 @@ const styles = StyleSheet.create({
   top: { paddingHorizontal: 22, paddingTop: 10 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   brand: { fontFamily: F.heavy, fontSize: 11, letterSpacing: 2.4, color: C.ink, textTransform: 'uppercase' },
+  wedPill: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: 190 },
+  wedT: { fontFamily: F.med, fontSize: 11, color: C.soft, flexShrink: 1 },
   topLabel: { fontFamily: F.med, fontSize: 10.5, letterSpacing: 2.2, color: C.muted, textTransform: 'uppercase' },
   track: { height: 1.5, backgroundColor: C.line },
   fill: { height: 1.5, backgroundColor: C.ink },

@@ -10,10 +10,11 @@ const COPY = {
   register: { h: 'Start your\nguest list.', lede: 'One account per wedding. Guests reply from a link, no app needed.' },
   forgot: { h: 'Forgot your\npassword?', lede: 'Enter the email you signed up with and we’ll send you a 6-digit code.' },
   reset: { h: 'Check your\nemail.', lede: 'Type the 6-digit code we sent, then choose a new password.' },
+  verify: { h: 'Confirm your\nemail.', lede: 'We sent a 6-digit code to your email. Type it below to finish.' },
 };
 
 export default function Auth() {
-  const { login, register, forgotPassword, resetPassword } = useStore();
+  const { login, register, verifyEmail, resendVerification, forgotPassword, resetPassword } = useStore();
   const [mode, setMode] = useState('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -29,7 +30,10 @@ export default function Auth() {
   const to = (m) => { setMode(m); setErr(''); setInfo(''); setPw(''); setCode(''); };
   const run = async (fn) => {
     setErr(''); setBusy(true);
-    try { await fn(); } catch (e) { setErr(e.message); }
+    try { await fn(); } catch (e) {
+      if (e.data && e.data.needsVerify) { setMode('verify'); setPw(''); setCode(''); setInfo(e.message); } // signing in before confirming the email
+      else setErr(e.message);
+    }
     setBusy(false);
   };
 
@@ -37,7 +41,10 @@ export default function Auth() {
     if (__DEV__) await setServer(srv);
     const mail = email.trim();
     if (mode === 'login') await login(mail, pw);
-    else if (mode === 'register') await register(name.trim(), mail, pw);
+    else if (mode === 'register') {
+      const r = await register(name.trim(), mail, pw);
+      if (r && r.needsVerify) { setMode('verify'); setPw(''); setCode(''); setInfo(`We sent a code to ${mail}. It works for 15 minutes.`); }
+    } else if (mode === 'verify') await verifyEmail(mail, code.trim());
     else if (mode === 'forgot') {
       await forgotPassword(mail);
       setMode('reset'); setPw(''); setCode('');
@@ -45,12 +52,12 @@ export default function Auth() {
     } else await resetPassword(mail, code.trim(), pw);
   });
   const resend = () => run(async () => {
-    await forgotPassword(email.trim());
+    if (mode === 'verify') await resendVerification(email.trim()); else await forgotPassword(email.trim());
     setInfo('Sent again. If nothing arrives in a minute, check your spam folder.');
   });
 
-  const ready = !!email && (mode === 'forgot' || (mode === 'reset' ? code.length >= 6 && pw : pw));
-  const title = { login: 'Sign in', register: 'Create account', forgot: 'Send code', reset: 'Reset password' }[mode];
+  const ready = !!email && (mode === 'forgot' || (mode === 'verify' ? code.length >= 6 : mode === 'reset' ? code.length >= 6 && pw : pw));
+  const title = { login: 'Sign in', register: 'Create account', forgot: 'Send code', reset: 'Reset password', verify: 'Confirm email' }[mode];
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: C.paper }}>
@@ -62,11 +69,11 @@ export default function Auth() {
         <View style={{ height: 26 }} />
 
         {mode === 'register' && <Field label="Your name" value={name} onChangeText={setName} autoCapitalize="words" />}
-        <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} editable={mode !== 'reset'} />
-        {mode === 'reset' && (
+        <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} editable={mode !== 'reset' && mode !== 'verify'} />
+        {(mode === 'reset' || mode === 'verify') && (
           <Field label="6-digit code" value={code} onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" maxLength={6} placeholder="123456" />
         )}
-        {mode !== 'forgot' && (
+        {mode !== 'forgot' && mode !== 'verify' && (
           <>
             <Field
               label={mode === 'reset' ? 'New password' : 'Password'} value={pw} onChangeText={setPw}
@@ -84,7 +91,7 @@ export default function Auth() {
         {!!err && <Text style={styles.err}>{err}</Text>}
         <Btn title={busy ? 'One moment…' : title} onPress={submit} disabled={busy || !ready} style={{ marginTop: 6 }} />
 
-        {mode === 'reset' && (
+        {(mode === 'reset' || mode === 'verify') && (
           <Pressable onPress={resend} disabled={busy} style={{ alignSelf: 'center', padding: 16 }}>
             <Text style={styles.switch}>SEND THE CODE AGAIN</Text>
           </Pressable>

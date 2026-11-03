@@ -35,7 +35,7 @@ Render's free plan blocks the ports SMTP uses (25, 465, 587), so Gmail's SMTP wi
 4. Copy the Web app URL.
 5. On Render > knotcount-server > Environment add `MAIL_WEBHOOK_URL` (that URL) and `MAIL_WEBHOOK_SECRET` (your `SECRET`), then save. Render redeploys.
 
-This switches on "Forgot password?" in the app, "Email all pending", and the automatic reminders every 3 days (daily job at 10:00 IST). A free Gmail can send about 100 emails a day through a script. On a paid Render plan you can use `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` instead.
+With email set up, a new account has to confirm its email with a 6-digit code before it can sign in. Accounts made before that are treated as already confirmed. This also switches on "Forgot password?" in the app, "Email all pending", and the automatic reminders every 3 days (daily job at 10:00 IST). A free Gmail can send about 100 emails a day through a script. On a paid Render plan you can use `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` instead.
 
 ## What stays manual
 WhatsApp does not let any app send messages on your behalf without the paid WhatsApp Business API. The app opens each message ready-typed with the guest's link; you tap send. Everything after that (the guest's reply, totals, caterer count) is automatic.

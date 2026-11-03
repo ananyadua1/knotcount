@@ -1,96 +1,60 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Feather } from '@expo/vector-icons';
 import { C, F } from '../theme';
 import { Label } from './ui';
 
-export const GOLD = '#E7C478';
-export const MAROON = '#7B1E3A';
-export const SAGE = '#E4EBDD';
+// Every design is the same card in the same fonts; only the colours change.
+export const PALETTES = [
+  { k: 'classic', t: 'Classic', bg: '#FBF8F2', ink: '#1A1714', acc: '#B8342B', line: '#DCD4C6' },
+  { k: 'royal', t: 'Royal', bg: '#7B1E3A', ink: '#FBF1D8', acc: '#E7C478', line: 'rgba(231,196,120,0.55)' },
+  { k: 'garden', t: 'Garden', bg: '#E4EBDD', ink: '#1A1714', acc: '#3E6A4D', line: '#B9C9B0' },
+];
+// ready-made choices for the custom colour
+export const SWATCHES = [
+  '#7B1E3A', '#9D174D', '#C2410C', '#B45309', '#065F46', '#2F5D50',
+  '#1F3A5F', '#0F172A', '#5B2A86', '#374151', '#F4EFE6', '#FDE68A',
+];
+export const isHex = (s) => /^#[0-9a-fA-F]{6}$/.test(s || '');
 
-// The on-screen invitation for each design. `w` is the wedding details.
-export default function InviteCard({ w, design }) {
+// colours for the chosen design: a ready-made palette, or text colours worked out from the host's own background colour
+export function themeOf(w) {
+  if (w.template === 'custom' && isHex(w.color)) {
+    const n = parseInt(w.color.slice(1), 16);
+    const dark = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) < 140;
+    return {
+      bg: w.color, ink: dark ? '#FBF8F2' : '#1A1714', acc: dark ? '#F3D58A' : '#7B1E3A',
+      line: dark ? 'rgba(255,255,255,0.35)' : 'rgba(26,23,20,0.25)',
+    };
+  }
+  return PALETTES.find((p) => p.k === w.template) || PALETTES[0];
+}
+
+export default function InviteCard({ w }) {
+  const th = themeOf(w);
   const bride = w.bride || 'Bride';
   const groom = w.groom || 'Groom';
   const when = [w.date, w.time].filter(Boolean).join(' · ');
-
-  if (design === 'custom') {
-    return (
-      <View style={[st.card, st.custom]}>
-        <Feather name="edit-3" size={26} color={C.ink} />
-        <Text style={st.customT}>Your own invitation</Text>
-        <Text style={st.customS}>Paste or type your text below. Each guest’s reply link is added to the end.</Text>
-      </View>
-    );
-  }
-
-  if (design === 'royal') {
-    return (
-      <View style={[st.card, { backgroundColor: MAROON, borderColor: MAROON }]}>
-        <View style={[st.inner, { borderColor: 'rgba(231,196,120,0.55)' }]}>
-          <Text style={[st.kicker, { color: GOLD }]}>Together with their families</Text>
-          <Text style={[st.royalName, { color: '#FBF1D8' }]}>{bride}</Text>
-          <Text style={[st.amp, { color: GOLD }]}>&</Text>
-          <Text style={[st.royalName, { color: '#FBF1D8' }]}>{groom}</Text>
-          <View style={[st.rule, { backgroundColor: GOLD }]} />
-          <Text style={[st.small, { color: '#FBF1D8' }]}>request the pleasure of your company</Text>
-          {!!when && <Text style={[st.meta, { color: '#FBF1D8', marginTop: 12 }]}>{when}</Text>}
-          {!!w.venue && <Text style={[st.meta, { color: GOLD }]}>{w.venue}</Text>}
-          {!!w.extra && <Text style={[st.extra, { color: '#FBF1D8' }]}>{w.extra}</Text>}
-        </View>
-      </View>
-    );
-  }
-
-  if (design === 'garden') {
-    return (
-      <View style={[st.card, { backgroundColor: SAGE, borderColor: C.leaf }]}>
-        <View style={[st.inner, { borderColor: '#B9C9B0' }]}>
-          <Feather name="feather" size={22} color={C.leaf} />
-          <Text style={[st.kicker, { color: C.leaf, marginTop: 14 }]}>We’re getting married</Text>
-          <Text style={st.gardenName}>{bride}</Text>
-          <Text style={[st.gardenAnd, { color: C.leaf }]}>and</Text>
-          <Text style={st.gardenName}>{groom}</Text>
-          <View style={[st.rule, { backgroundColor: C.leaf }]} />
-          {!!when && <Text style={st.meta}>{when}</Text>}
-          {!!w.venue && <Text style={[st.meta, { color: C.soft }]}>{w.venue}</Text>}
-          {!!w.extra && <Text style={[st.extra, { color: C.soft }]}>{w.extra}</Text>}
-        </View>
-      </View>
-    );
-  }
-
-  // classic
   return (
-    <View style={st.card}>
-      <View style={st.inner}>
-        <Label style={{ letterSpacing: 4 }}>{bride[0]} & {groom[0]}</Label>
-        <Text style={st.invited}>You’re{'\n'}invited</Text>
-        <Text style={st.names}>{bride} & {groom}</Text>
-        <View style={[st.rule, { backgroundColor: C.ink }]} />
-        {!!when && <Text style={st.meta}>{when}</Text>}
-        {!!w.venue && <Text style={[st.meta, { color: C.muted }]}>{w.venue}</Text>}
-        {!!w.extra && <Text style={[st.extra, { color: C.soft }]}>{w.extra}</Text>}
+    <View style={[st.card, { backgroundColor: th.bg, borderColor: th.ink }]}>
+      <View style={[st.inner, { borderColor: th.line }]}>
+        <Label style={{ letterSpacing: 4, color: th.ink, opacity: 0.7 }}>{bride[0]} & {groom[0]}</Label>
+        <Text style={[st.invited, { color: th.ink }]}>You’re{'\n'}invited</Text>
+        <Text style={[st.names, { color: th.acc }]}>{bride} & {groom}</Text>
+        <View style={[st.rule, { backgroundColor: th.ink }]} />
+        {!!when && <Text style={[st.meta, { color: th.ink }]}>{when}</Text>}
+        {!!w.venue && <Text style={[st.meta, { color: th.ink, opacity: 0.75 }]}>{w.venue}</Text>}
+        {!!w.extra && <Text style={[st.extra, { color: th.ink }]}>{w.extra}</Text>}
       </View>
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  card: { borderRadius: 22, backgroundColor: C.card, borderWidth: 1, borderColor: C.ink, padding: 8 },
-  inner: { borderRadius: 16, borderWidth: 1, borderColor: C.line, paddingVertical: 28, paddingHorizontal: 22, alignItems: 'center' },
-  kicker: { fontFamily: F.med, fontSize: 10.5, letterSpacing: 2.6, textTransform: 'uppercase', textAlign: 'center' },
-  invited: { fontFamily: F.serif, fontSize: 54, lineHeight: 56, color: C.ink, textAlign: 'center', marginTop: 16 },
-  names: { fontFamily: F.heavy, fontSize: 13, letterSpacing: 3, color: C.sindoor, marginTop: 18, textTransform: 'uppercase', textAlign: 'center' },
+  card: { borderRadius: 22, borderWidth: 1, padding: 8 },
+  inner: { borderRadius: 16, borderWidth: 1, paddingVertical: 30, paddingHorizontal: 22, alignItems: 'center' },
+  invited: { fontFamily: F.serif, fontSize: 54, lineHeight: 56, textAlign: 'center', marginTop: 16 },
+  names: { fontFamily: F.heavy, fontSize: 13, letterSpacing: 3, marginTop: 18, textTransform: 'uppercase', textAlign: 'center' },
   rule: { width: 28, height: 1.5, marginVertical: 18 },
-  meta: { fontFamily: F.med, fontSize: 13, color: C.ink, marginTop: 3, textAlign: 'center' },
-  extra: { fontFamily: F.reg, fontSize: 12.5, marginTop: 8, textAlign: 'center', lineHeight: 18 },
-  small: { fontFamily: F.serif, fontSize: 15, textAlign: 'center' },
-  royalName: { fontFamily: F.serif, fontSize: 38, lineHeight: 44, textAlign: 'center', marginTop: 6 },
-  amp: { fontFamily: F.serif, fontSize: 22, marginTop: 2 },
-  gardenName: { fontFamily: F.heavy, fontSize: 26, letterSpacing: 4, color: C.ink, textTransform: 'uppercase', textAlign: 'center', marginTop: 8 },
-  gardenAnd: { fontFamily: F.serif, fontSize: 18, marginTop: 6 },
-  custom: { borderStyle: 'dashed', borderColor: C.muted, backgroundColor: C.paper, alignItems: 'center', paddingVertical: 40, paddingHorizontal: 26 },
-  customT: { fontFamily: F.heavy, fontSize: 13, letterSpacing: 2.4, color: C.ink, textTransform: 'uppercase', marginTop: 14 },
-  customS: { fontFamily: F.reg, fontSize: 13.5, color: C.soft, textAlign: 'center', lineHeight: 20, marginTop: 8 },
+  meta: { fontFamily: F.med, fontSize: 13, marginTop: 3, textAlign: 'center' },
+  extra: { fontFamily: F.reg, fontSize: 12.5, marginTop: 8, textAlign: 'center', lineHeight: 18, opacity: 0.85 },
 });

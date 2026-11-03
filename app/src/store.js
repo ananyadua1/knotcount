@@ -1,10 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { api, loadSession, setToken, setAuthFailHandler } from './api';
+import { api, loadSession, setToken, setEventId, getEventId, setAuthFailHandler } from './api';
 
 const blankWedding = {
   bride: '', groom: '', date: '', time: '7:00 PM', venue: '', invite: '', reminder: '', autoReminders: false,
-  template: 'classic', extra: '',
+  template: 'classic', color: '', msgStyle: '', extra: '',
 };
 
 const Ctx = createContext(null);
@@ -16,22 +16,29 @@ export function StoreProvider({ children }) {
   const [guests, setGuests] = useState([]);
   const [wedding, setWeddingState] = useState(blankWedding);
   const [mail, setMail] = useState(false);
+  const [events, setEvents] = useState([]);
+  const [me, setMe] = useState(null);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
   const saveTimer = useRef(null);
+  const pendingWedding = useRef(null);
   const editing = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async function refresh() {
     try {
-      const [g, e] = await Promise.all([api('GET', '/api/guests'), api('GET', '/api/event')]);
+      const [g, e, list] = await Promise.all([api('GET', '/api/guests'), api('GET', '/api/event'), api('GET', '/api/events')]);
       if (!editing.current) { setGuests(g.guests); }
       setWeddingState((w) => (saveTimer.current ? w : { ...blankWedding, ...e.event }));
+      setEvents(list.events);
       setMail(!!e.mail); setError(''); setLoaded(true);
-    } catch (e) { setError(e.offline ? 'Offline. Showing last known list.' : e.message); }
+    } catch (e) {
+      if (e.status === 404) { await setEventId(null); setGuests([]); setLoaded(false); return refresh(); } // that wedding was removed
+      setError(e.offline ? 'Offline. Showing last known list.' : e.message);
+    }
   }, []);
 
   useEffect(() => {
-    setAuthFailHandler(() => { setToken(null); setAuthed(false); setGuests([]); });
+    setAuthFailHandler(() => { setToken(null); setAuthed(false); setGuests([]); setEvents([]); setMe(null); });
     (async () => { const has = await loadSession(); setAuthed(has); setBooting(false); })();
   }, []);
 
@@ -39,6 +46,7 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     if (!authed) return;
     refresh();
+    api('GET', '/api/me').then((r) => setMe(r.user)).catch(() => {});
     const t = setInterval(refresh, 8000);
     const sub = AppState.addEventListener('change', (s) => s === 'active' && refresh());
     return () => { clearInterval(t); sub.remove(); };
@@ -51,14 +59,47 @@ export function StoreProvider({ children }) {
     };
     const register = async (name, email, password) => {
       const r = await api('POST', '/api/auth/register', { name, email, password });
+      if (r.needsVerify) return r; // a code was emailed; the account opens once it is entered
       await setToken(r.token); setLoaded(false); setAuthed(true); return r.user;
     };
+    const verifyEmail = async (email, code) => {
+      const r = await api('POST', '/api/auth/verify', { email, code });
+      await setToken(r.token); setLoaded(false); setAuthed(true); return r.user;
+    };
+    const resendVerification = (email) => api('POST', '/api/auth/resend', { email });
     const forgotPassword = (email) => api('POST', '/api/auth/forgot', { email });
     const resetPassword = async (email, code, password) => {
       const r = await api('POST', '/api/auth/reset', { email, code, password });
       await setToken(r.token); setLoaded(false); setAuthed(true); return r.user;
     };
-    const logout = async () => { await setToken(null); setAuthed(false); setGuests([]); setWeddingState(blankWedding); setLoaded(false); };
+    const logout = async () => {
+      await setToken(null); await setEventId(null);
+      setAuthed(false); setGuests([]); setEvents([]); setMe(null); setWeddingState(blankWedding); setLoaded(false);
+    };
+
+    // an account can hold several weddings; everything on screen belongs to the one selected
+    const switchEvent = async (id) => {
+      if (id === getEventId()) return;
+      if (saveTimer.current) { // save pending edits to the wedding being left, before the header changes
+        clearTimeout(saveTimer.current); saveTimer.current = null;
+        try { await api('PUT', '/api/event', pendingWedding.current); } catch (e) { setError(e.message); }
+      }
+      await setEventId(id);
+      setGuests([]); setWeddingState(blankWedding); setLoaded(false);
+      await refresh();
+    };
+    const addEvent = async (bride = '', groom = '') => {
+      const r = await api('POST', '/api/events', { bride, groom });
+      await switchEvent(r.event.id);
+      return r.event;
+    };
+    const removeEvent = async (id) => {
+      await api('DELETE', `/api/events/${id}`);
+      const rest = events.filter((e) => e.id !== id);
+      setEvents(rest);
+      if (id === (getEventId() ?? events[0]?.id)) { await setEventId(null); setGuests([]); setWeddingState(blankWedding); setLoaded(false); }
+      await refresh();
+    };
 
     const deleteAccount = async () => { await api('DELETE', '/api/account'); await logout(); };
 
@@ -87,6 +128,7 @@ export function StoreProvider({ children }) {
       setWeddingState((prev) => {
         const next = typeof fn === 'function' ? fn(prev) : fn;
         clearTimeout(saveTimer.current);
+        pendingWedding.current = next;
         saveTimer.current = setTimeout(async () => {
           try { await api('PUT', '/api/event', next); } catch (e) { setError(e.message); }
           saveTimer.current = null;
@@ -115,36 +157,41 @@ export function StoreProvider({ children }) {
       sent: guests.filter((x) => x.invited).length,
       households: guests.length,
     };
-    return { booting, authed, loaded, error, mail, guests, wedding, stats, refresh, login, register, forgotPassword, resetPassword, logout, deleteAccount,
+    return { booting, authed, loaded, error, mail, guests, wedding, stats, refresh, login, register, verifyEmail, resendVerification, forgotPassword, resetPassword, logout, deleteAccount,
+      events, me, switchEvent, addEvent, removeEvent,
       addGuests, updateGuest, removeGuest, respond, setWedding };
-  }, [booting, authed, loaded, error, mail, guests, wedding, refresh]);
+  }, [booting, authed, loaded, error, mail, guests, wedding, events, me, refresh]);
 
   return <Ctx.Provider value={api2}>{children}</Ctx.Provider>;
 }
 
-// The invite and reminder are plain text the host pastes or types. Until they do, the chosen design supplies ready wording built from the wedding details.
+// The invitation text is plain text, never code. The host picks one of three ready messages (built from the wedding details)
+// or writes their own. Each guest's personal reply link is added at the end.
 const oldDefault = (s) => !s || !s.trim() || s.includes('{couple} are getting married') || s.includes('confirm your attendance at {couple}');
 
-export const DESIGNS = [
-  { k: 'classic', t: 'Classic' },
-  { k: 'royal', t: 'Royal' },
-  { k: 'garden', t: 'Garden' },
-  { k: 'custom', t: 'Custom' },
+export const MESSAGES = [
+  { k: 'warm', t: 'Warm' },
+  { k: 'formal', t: 'Formal' },
+  { k: 'short', t: 'Short' },
+  { k: 'custom', t: 'My own' },
 ];
 
 const whenWhere = (w) => [[w.date, w.time].filter(Boolean).join(', '), w.venue, w.extra].filter(Boolean).join('\n');
 const WORDING = {
-  classic: (w) => `Namaste! ${couple(w)} are getting married and would love to have you with them.\n\n${whenWhere(w)}\n\nPlease tell us if you can make it, it takes 20 seconds:`,
-  royal: (w) => `Together with their families,\n${couple(w)}\nrequest the pleasure of your company at their wedding.\n\n${whenWhere(w)}\n\nKindly let us know if you can join us:`,
-  garden: (w) => `We’re getting married! ${couple(w)} would love for you to celebrate with us.\n\n${whenWhere(w)}\n\nTap here to tell us you’re coming:`,
+  warm: (w) => `Namaste! ${couple(w)} are getting married and would love to have you with them.\n\n${whenWhere(w)}\n\nPlease tell us if you can make it, it takes 20 seconds:`,
+  formal: (w) => `Together with their families,\n${couple(w)}\nrequest the pleasure of your company at their wedding.\n\n${whenWhere(w)}\n\nKindly let us know if you can join us:`,
+  short: (w) => `You’re invited to ${couple(w)}’s wedding${w.date ? ` on ${w.date}` : ''}${w.venue ? ` at ${w.venue}` : ''}.\n\nPlease reply here:`,
 };
-// the wording a design starts with, tidied so blank details leave no gaps
-export const designText = (w) => (WORDING[w.template] || WORDING.classic)(w).replace(/\n{3,}/g, '\n\n');
+// the ready wording for a style, tidied so blank details leave no gaps
+export const wordingOf = (style, w) => (WORDING[style] || WORDING.warm)(w).replace(/\n{3,}/g, '\n\n');
+
+// which message is selected; an older account that wrote its own text counts as "My own"
+export const msgStyleOf = (w) => w.msgStyle || (oldDefault(w.invite) ? 'warm' : 'custom');
 
 export const inviteText = (w) => {
-  const own = !oldDefault(w.invite);
-  if (w.template === 'custom') return own ? w.invite : '';
-  return own ? w.invite : designText(w);
+  const style = msgStyleOf(w);
+  if (style === 'custom') return oldDefault(w.invite) ? '' : w.invite;
+  return wordingOf(style, w);
 };
 export const reminderText = (w) =>
   oldDefault(w.reminder)

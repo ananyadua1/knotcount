@@ -22,7 +22,7 @@ export async function migrate() {
     );
     CREATE TABLE IF NOT EXISTS events (
       id            SERIAL PRIMARY KEY,
-      user_id       INT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      user_id       INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       bride         TEXT NOT NULL DEFAULT '',
       groom         TEXT NOT NULL DEFAULT '',
       date_text     TEXT NOT NULL DEFAULT '',
@@ -59,6 +59,18 @@ export async function migrate() {
       WHERE veg_count IS NULL AND status = 'confirmed' AND meal IS NOT NULL;
     ALTER TABLE events ADD COLUMN IF NOT EXISTS template TEXT NOT NULL DEFAULT 'classic';
     ALTER TABLE events ADD COLUMN IF NOT EXISTS extra_text TEXT NOT NULL DEFAULT '';
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT '';
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS msg_style TEXT NOT NULL DEFAULT '';
+    ALTER TABLE events DROP CONSTRAINT IF EXISTS events_user_id_key;
+    CREATE INDEX IF NOT EXISTS events_user_idx ON events(user_id);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT true;
+    CREATE TABLE IF NOT EXISTS email_verifications (
+      user_id    INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      code_hash  TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      attempts   INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
     CREATE TABLE IF NOT EXISTS password_resets (
       user_id    INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       code_hash  TEXT NOT NULL,
