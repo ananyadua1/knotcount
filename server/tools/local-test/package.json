@@ -1,0 +1,13 @@
+{
+  "name": "knotcount-local-test",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runs the server tests against a throwaway Postgres. Separate from the server so deploys never install it.",
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "dependencies": {
+    "embedded-postgres": "^18.6.0-beta.19"
+  }
+}
