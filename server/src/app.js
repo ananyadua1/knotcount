@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { q } from './db.js';
-import { newToken, baseUrl, guestOut, eventOut, defaultEvent, fillTpl, str, int } from './util.js';
+import { newToken, baseUrl, guestOut, eventOut, defaultEvent, fillTpl, str, int, vegOf, mealOf } from './util.js';
 import { sendMail, mailEnabled } from './mail.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -134,24 +134,34 @@ export function createApp() {
 
   app.patch('/api/guests/:id', auth, wrap(async (req, res) => {
     const b = req.body || {};
+    if (!Object.keys(b).length) return res.status(400).json({ error: 'Nothing to update.' });
     const g = clean(b);
+    const cur = (await q('SELECT * FROM guests WHERE id=$1 AND event_id=$2', [req.params.id, req.event.id])).rows[0];
+    if (!cur) return res.status(404).json({ error: 'Guest not found.' });
     const sets = [], vals = [];
     const add = (col, v) => { vals.push(v); sets.push(`${col}=$${vals.length}`); };
     for (const [k, v] of Object.entries(g)) add(k, v);
     if (g.invited === true) sets.push('invited_at=COALESCE(invited_at, now())');
-    if (b.status !== undefined && ['pending', 'confirmed', 'declined'].includes(b.status)) {
+    const seats = g.seats ?? cur.seats;
+    const setStatus = ['pending', 'confirmed', 'declined'].includes(b.status);
+    const status = setStatus ? b.status : cur.status;
+    if (setStatus) {
       add('status', b.status);
-      add('attending', b.status === 'confirmed' ? int(b.attending, 1, 60, 1) : 0);
       add('responded_at', b.status === 'pending' ? null : new Date());
       add('responded_via', b.status === 'pending' ? null : 'host');
-      if (b.status !== 'confirmed') { add('meal', null); add('arrival', null); }
     }
-    if (b.status === 'confirmed' || (b.status === undefined && (b.meal !== undefined || b.arrival !== undefined))) {
-      if (b.meal !== undefined) add('meal', ['veg', 'nonveg'].includes(b.meal) ? b.meal : null);
+    if (status === 'confirmed') {
+      // never more people than the invite covers
+      const wasConfirmed = cur.status === 'confirmed';
+      const attending = b.attending !== undefined ? int(b.attending, 1, seats, seats)
+        : wasConfirmed ? Math.min(cur.attending, seats) : seats;
+      const veg = vegOf(attending, b, wasConfirmed ? cur.veg_count : null);
+      add('attending', attending); add('veg_count', veg); add('meal', mealOf(attending, veg));
       if (b.arrival !== undefined) add('arrival', b.arrival === null ? null : int(b.arrival, 0, 1439, null));
+    } else {
+      add('attending', 0); add('veg_count', null); add('meal', null); add('arrival', null);
     }
     if (b.reminded) sets.push('reminded_at=now()');
-    if (!sets.length) return res.status(400).json({ error: 'Nothing to update.' });
     vals.push(req.params.id, req.event.id);
     const r = await q(`UPDATE guests SET ${sets.join(', ')} WHERE id=$${vals.length - 1} AND event_id=$${vals.length} RETURNING *`, vals);
     if (!r.rows[0]) return res.status(404).json({ error: 'Guest not found.' });
@@ -176,7 +186,7 @@ export function createApp() {
     if (!g) return res.status(404).json({ error: 'This invitation link is not valid.' });
     res.json({
       event: { bride: g.bride, groom: g.groom, date: g.date_text, time: g.time_text, venue: g.venue },
-      guest: { name: g.name, seats: g.seats, status: g.status, attending: g.attending, meal: g.meal, arrival: g.arrival },
+      guest: { name: g.name, seats: g.seats, status: g.status, attending: g.attending, vegCount: g.veg_count, meal: g.meal, arrival: g.arrival },
     });
   }));
 
@@ -187,16 +197,17 @@ export function createApp() {
     const yes = b.attending === true || b.attending === 'yes';
     const no = b.attending === false || b.attending === 'no';
     if (!yes && !no) return res.status(400).json({ error: 'Please choose Yes or No.' });
-    const count = yes ? int(b.count, 1, g.seats + 4, Math.min(g.seats, 1)) : 0;
-    const meal = yes && ['veg', 'nonveg'].includes(b.meal) ? b.meal : null;
+    const count = yes ? int(b.count, 1, g.seats, 1) : 0;
+    const veg = yes ? vegOf(count, b) : null;
+    const meal = mealOf(count, veg);
     const arrival = yes && b.arrival !== undefined && b.arrival !== null ? int(b.arrival, 0, 1439, null) : null;
     const r = await q(
-      `UPDATE guests SET status=$1, attending=$2, meal=$3, arrival=$4, note=$5, responded_at=now(), responded_via='link'
-       WHERE id=$6 RETURNING *`,
-      [yes ? 'confirmed' : 'declined', count, meal, arrival, str(b.note, 500), g.id]
+      `UPDATE guests SET status=$1, attending=$2, meal=$3, veg_count=$4, arrival=$5, note=$6, responded_at=now(), responded_via='link'
+       WHERE id=$7 RETURNING *`,
+      [yes ? 'confirmed' : 'declined', count, meal, veg, arrival, str(b.note, 500), g.id]
     );
     const x = r.rows[0];
-    res.json({ ok: true, guest: { status: x.status, attending: x.attending, meal: x.meal, arrival: x.arrival } });
+    res.json({ ok: true, guest: { status: x.status, attending: x.attending, vegCount: x.veg_count, meal: x.meal, arrival: x.arrival } });
   }));
 
   app.use(express.static(path.join(__dirname, '../public'), { index: false }));

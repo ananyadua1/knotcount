@@ -31,20 +31,22 @@ assert.match(sharma.link, /\/r\/[\w-]{20,}$/);
 
 // guest opens the public link and replies, no login
 r = await call('GET', `/api/public/${sharma.token}`); assert.equal(r.json.guest.name, 'Sharma family');
-r = await call('POST', `/api/public/${sharma.token}/rsvp`, { attending: true, count: 3, meal: 'veg', arrival: 1125 });
-assert.equal(r.json.guest.status, 'confirmed');
+r = await call('POST', `/api/public/${sharma.token}/rsvp`, { attending: true, count: 3, veg: 1, arrival: 1125 });
+assert.equal(r.json.guest.status, 'confirmed'); assert.equal(r.json.guest.vegCount, 1); // 1 veg + 2 non-veg
 r = await call('POST', `/api/public/${priya.token}/rsvp`, { attending: false });
 assert.equal(r.json.guest.status, 'declined');
 r = await call('POST', `/api/public/${sharma.token}/rsvp`, {}); assert.equal(r.status, 400);
 r = await call('POST', `/api/public/${sharma.token}/rsvp`, { attending: true, count: 99 });
-assert.equal(r.json.guest.attending, 8); // capped at seats + 4
-r = await call('POST', `/api/public/${sharma.token}/rsvp`, { attending: true, count: 3, meal: 'veg', arrival: 1125 });
+assert.equal(r.json.guest.attending, 4); // capped at the 4 invited seats
+r = await call('POST', `/api/public/${sharma.token}/rsvp`, { attending: true, count: 3, veg: 9, arrival: 1125 });
+assert.equal(r.json.guest.vegCount, 3); // veg can't exceed the people coming
+r = await call('POST', `/api/public/${sharma.token}/rsvp`, { attending: true, count: 3, veg: 1, arrival: 1125 });
 r = await call('GET', '/api/public/not-a-token'); assert.equal(r.status, 404);
 
 // host sees live results
 r = await call('GET', '/api/guests', null, T);
 const s = r.json.guests.find((g) => g.name === 'Sharma family');
-assert.equal(s.status, 'confirmed'); assert.equal(s.attending, 3); assert.equal(s.via, 'link'); assert.equal(s.arrival, 1125);
+assert.equal(s.status, 'confirmed'); assert.equal(s.attending, 3); assert.equal(s.vegCount, 1); assert.equal(s.via, 'link'); assert.equal(s.arrival, 1125);
 
 // another host cannot touch these guests
 const r2 = await call('POST', '/api/auth/register', { email: `o${email}`, password: 'longenough1' });
@@ -56,6 +58,14 @@ r = await call('GET', '/api/guests', null, T); assert.equal(r.json.guests.length
 // manual override + mark sent
 r = await call('PATCH', `/api/guests/${priya.id}`, { status: 'confirmed', attending: 2, invited: true, reminded: true }, T);
 assert.equal(r.json.guest.status, 'confirmed'); assert.equal(r.json.guest.invited, true); assert.ok(r.json.guest.reminded);
+// host edits: attendance capped at seats, veg split kept in range, shrinking seats trims the reply
+r = await call('PATCH', `/api/guests/${sharma.id}`, { status: 'confirmed', attending: 99, vegCount: 2 }, T);
+assert.equal(r.json.guest.attending, 4); assert.equal(r.json.guest.vegCount, 2);
+r = await call('PATCH', `/api/guests/${sharma.id}`, { seats: 2 }, T);
+assert.equal(r.json.guest.attending, 2); assert.equal(r.json.guest.vegCount, 2);
+r = await call('PATCH', `/api/guests/${sharma.id}`, { status: 'declined' }, T);
+assert.equal(r.json.guest.attending, 0); assert.equal(r.json.guest.vegCount, null);
+r = await call('PATCH', `/api/guests/${sharma.id}`, {}, T); assert.equal(r.status, 400);
 r = await call('DELETE', `/api/guests/${priya.id}`, null, T);
 r = await call('GET', '/api/guests', null, T); assert.equal(r.json.guests.length, 1);
 const html = await (await fetch(`${base}/r/${sharma.token}`)).text(); assert.ok(html.includes('will you attend'));

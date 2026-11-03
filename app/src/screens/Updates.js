@@ -30,7 +30,7 @@ export default function Updates() {
   const replied = guests.filter((g) => g.respondedAt).sort((a, b) => b.respondedAt - a.respondedAt).slice(0, 8);
   const toggle = (g, status) =>
     respond(g.id, status === 'confirmed'
-      ? { status, attending: g.attending || g.seats }
+      ? { status, attending: Math.min(g.attending || g.seats, g.seats) }
       : { status, attending: 0 });
 
   const remind = async (g) => {
@@ -44,13 +44,13 @@ export default function Updates() {
       <Heading style={{ marginTop: 8 }}>RSVP{'\n'}updates.</Heading>
 
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 26 }}>
-        <Stat label="Confirmed" value={stats.confirmed} active />
-        <Stat label="Declined" value={stats.declined} />
-        <Stat label="Awaiting" value={stats.pending} />
+        <Stat label="Confirmed" value={stats.people.coming} active />
+        <Stat label="Declined" value={stats.people.declined} />
+        <Stat label="Awaiting" value={stats.people.awaiting} />
       </View>
       <Text style={styles.meals}>
-        For the caterer: <Text style={styles.mb}>{stats.veg} veg</Text>  ·  <Text style={styles.mb}>{stats.nonveg} non-veg</Text>
-        {stats.confirmed - stats.veg - stats.nonveg > 0 ? `  ·  ${stats.confirmed - stats.veg - stats.nonveg} not chosen` : ''}
+        For the caterer: <Text style={styles.mb}>{stats.people.veg} veg</Text>  ·  <Text style={styles.mb}>{stats.people.nonveg} non-veg</Text>
+        {stats.people.unchosen > 0 ? `  ·  ${stats.people.unchosen} not chosen` : ''}
       </Text>
 
       <Label style={{ marginTop: 34 }}>Automatic reminders</Label>

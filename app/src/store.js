@@ -88,13 +88,22 @@ export function StoreProvider({ children }) {
     };
 
     const sum = (arr, f) => arr.reduce((a, x) => a + f(x), 0);
+    const yes = guests.filter((x) => x.status === 'confirmed');
+    const withMeal = yes.filter((x) => x.vegCount != null);
+    // invitations (a family is 1 invite); `people` counts the individual guests inside them
     const stats = {
-      invited: sum(guests, (x) => x.seats),
-      confirmed: sum(guests.filter((x) => x.status === 'confirmed'), (x) => x.attending),
-      declined: sum(guests.filter((x) => x.status === 'declined'), (x) => x.seats),
-      pending: sum(guests.filter((x) => x.status === 'pending'), (x) => x.seats),
-      veg: sum(guests.filter((x) => x.status === 'confirmed' && x.meal === 'veg'), (x) => x.attending),
-      nonveg: sum(guests.filter((x) => x.status === 'confirmed' && x.meal === 'nonveg'), (x) => x.attending),
+      invited: guests.length,
+      confirmed: yes.length,
+      pending: guests.filter((x) => x.status === 'pending').length,
+      declined: guests.filter((x) => x.status === 'declined').length,
+      people: {
+        coming: sum(yes, (x) => x.attending),
+        veg: sum(withMeal, (x) => x.vegCount),
+        nonveg: sum(withMeal, (x) => x.attending - x.vegCount),
+        unchosen: sum(yes.filter((x) => x.vegCount == null), (x) => x.attending),
+        declined: sum(guests.filter((x) => x.status === 'declined'), (x) => x.seats),
+        awaiting: sum(guests.filter((x) => x.status === 'pending'), (x) => x.seats),
+      },
       sent: guests.filter((x) => x.invited).length,
       households: guests.length,
     };
@@ -112,3 +121,17 @@ export const fill = (tpl, g, w) =>
     .replaceAll('{couple}', couple(w))
     .replaceAll('{date}', w.date).replaceAll('{time}', w.time)
     .replaceAll('{venue}', w.venue).replaceAll('{link}', g.link || '');
+
+// veg / non-veg head count for one invite, never more people than it has seats
+export const splitOf = (g, n = g.attending || g.seats) => {
+  const total = Math.max(1, Math.min(n, g.seats));
+  const veg = g.vegCount != null ? Math.min(g.vegCount, total) : g.meal === 'nonveg' ? 0 : total;
+  return { veg, nonveg: total - veg };
+};
+// trim a split to `max` people, dropping non-veg first
+export const fitSplit = ({ veg, nonveg }, max) => {
+  const over = veg + nonveg - max;
+  if (over <= 0) return { veg, nonveg };
+  const cut = Math.min(nonveg, over);
+  return { veg: veg - (over - cut), nonveg: nonveg - cut };
+};

@@ -12,7 +12,7 @@ export function baseUrl(req) {
 export const guestOut = (g, base) => ({
   id: g.id, token: g.token, link: `${base}/r/${g.token}`,
   name: g.name, phone: g.phone, email: g.email, side: g.side, seats: g.seats,
-  status: g.status, attending: g.attending, meal: g.meal, arrival: g.arrival, note: g.note,
+  status: g.status, attending: g.attending, vegCount: g.veg_count, meal: g.meal, arrival: g.arrival, note: g.note,
   invited: g.invited, reminded: ms(g.reminded_at), respondedAt: ms(g.responded_at), via: g.responded_via,
 });
 
@@ -35,6 +35,18 @@ export const fillTpl = (tpl, g, e, link) =>
     .replaceAll('{couple}', `${e.bride} & ${e.groom}`)
     .replaceAll('{date}', e.date_text).replaceAll('{time}', e.time_text)
     .replaceAll('{venue}', e.venue).replaceAll('{link}', link);
+
+// How many of `count` people eat vegetarian. Reads vegCount / veg, or the older single `meal` choice.
+// With neither, keeps `fallback` (clamped), or null meaning "not chosen".
+export const vegOf = (count, b, fallback = null) => {
+  const raw = b.vegCount ?? b.veg;
+  if (raw !== undefined && raw !== null) return int(raw, 0, count, 0);
+  if (b.meal === 'veg') return count;
+  if (b.meal === 'nonveg') return 0;
+  return fallback === null || fallback === undefined ? null : Math.min(fallback, count);
+};
+// The legacy `meal` column mirrors the split when it is all one kind.
+export const mealOf = (count, veg) => (veg === null ? null : veg === count ? 'veg' : veg === 0 ? 'nonveg' : null);
 
 const s = (v, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 export const str = s;

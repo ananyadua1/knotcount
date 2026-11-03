@@ -3,8 +3,9 @@ import { View, Text, ScrollView, StyleSheet, Pressable, Modal, FlatList, TextInp
 import { Feather } from '@expo/vector-icons';
 import { C, F } from '../theme';
 import { Label, Heading, Btn, IconBtn, Card, Hair, tap } from '../components/ui';
-import { Plate, Clock } from '../components/art';
-import { useStore } from '../store';
+import { Clock } from '../components/art';
+import MealSplit from '../components/MealSplit';
+import { useStore, splitOf } from '../store';
 
 const fmt = (m) => {
   const h = Math.floor(m / 60) % 24, mm = m % 60;
@@ -17,23 +18,25 @@ export default function Rsvp({ onClose }) {
   const [pick, setPick] = useState(false);
   const [q, setQ] = useState('');
   const [yes, setYes] = useState(true);
-  const [n, setN] = useState(1);
-  const [meal, setMeal] = useState('veg');
+  const [veg, setVeg] = useState(1);
+  const [nonveg, setNonveg] = useState(0);
   const [mins, setMins] = useState(19 * 60);
   const [done, setDone] = useState(false);
 
   const g = guests.find((x) => x.id === id);
   useEffect(() => {
     if (!g) return;
-    setYes(g.status !== 'declined'); setN(g.attending || g.seats); setMeal(g.meal || 'veg');
+    const s = splitOf(g);
+    setYes(g.status !== 'declined'); setVeg(s.veg); setNonveg(s.nonveg);
     if (g.arrival) setMins(g.arrival); setDone(false);
   }, [id]);
 
   const rows = useMemo(() => guests.filter((x) => x.name.toLowerCase().includes(q.toLowerCase())).sort((a, b) => (a.status === 'pending' ? -1 : 1) - (b.status === 'pending' ? -1 : 1) || a.name.localeCompare(b.name)), [guests, q]);
 
+  const n = veg + nonveg;
   const confirm = () => {
     respond(g.id, yes
-      ? { status: 'confirmed', attending: n, meal, arrival: mins }
+      ? { status: 'confirmed', attending: n, vegCount: veg, arrival: mins }
       : { status: 'declined', attending: 0 });
     setDone(true);
   };
@@ -80,27 +83,13 @@ export default function Rsvp({ onClose }) {
             <>
               <Label style={styles.sec}>Number of guests</Label>
               <View style={styles.count}>
-                <IconBtn name="minus" size={42} onPress={() => setN(Math.max(1, n - 1))} />
                 <Text style={styles.big}>{n}</Text>
-                <IconBtn name="plus" size={42} solid onPress={() => setN(Math.min(g.seats + 4, n + 1))} />
               </View>
               <Text style={styles.seatHint}>Invited for {g.seats} seat{g.seats > 1 ? 's' : ''}</Text>
 
-              <Heading size={30} style={{ marginTop: 34 }}>Food{'\n'}preference.</Heading>
-              <View style={{ flexDirection: 'row', gap: 12, marginTop: 18 }}>
-                {[['veg', 'Vegetarian'], ['nonveg', 'Non-veg']].map(([k, t]) => {
-                  const on = meal === k;
-                  return (
-                    <Pressable key={k} onPress={() => { tap(); setMeal(k); }} style={[styles.meal, on && { borderColor: C.ink, borderWidth: 1.5, backgroundColor: C.card }]}>
-                      <Plate veg={k === 'veg'} width={118} />
-                      <Text style={styles.mealT}>{t}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16 }}>
-                        <View style={[styles.radio, on && { backgroundColor: C.ink }]}>{on && <Feather name="check" size={12} color={C.card} />}</View>
-                        <Label style={{ fontSize: 9.5, marginLeft: 8 }}>{on ? 'Selected' : 'Select'}</Label>
-                      </View>
-                    </Pressable>
-                  );
-                })}
+              <Heading size={30} style={{ marginTop: 34 }}>Who eats{'\n'}what.</Heading>
+              <View style={{ marginTop: 18 }}>
+                <MealSplit veg={veg} nonveg={nonveg} max={g.seats} onChange={(v, nv) => { setVeg(v); setNonveg(nv); }} />
               </View>
 
               <Label style={styles.sec}>Expected arrival</Label>
@@ -152,12 +141,9 @@ const styles = StyleSheet.create({
   ynOn: { backgroundColor: C.ink, borderColor: C.ink },
   ynT: { fontFamily: F.heavy, fontSize: 14, letterSpacing: 3, color: C.ink, textTransform: 'uppercase' },
   sec: { marginTop: 32 },
-  count: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+  count: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   big: { fontFamily: F.reg, fontSize: 80, color: C.ink, letterSpacing: -3, lineHeight: 92 },
   seatHint: { fontFamily: F.reg, fontSize: 12.5, color: C.muted, textAlign: 'center', marginTop: -4 },
-  meal: { flex: 1, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 12, paddingTop: 22, alignItems: 'center', backgroundColor: C.paper },
-  mealT: { fontFamily: F.heavy, fontSize: 11.5, letterSpacing: 1.6, color: C.ink, marginTop: 18, textTransform: 'uppercase' },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
   time: { fontFamily: F.heavy, fontSize: 44, letterSpacing: -2, color: C.ink, marginTop: 14 },
   tick: { width: 46, height: 46, borderRadius: 23, backgroundColor: C.ink, alignItems: 'center', justifyContent: 'center' },
   doneT: { fontFamily: F.heavy, fontSize: 13, letterSpacing: 2, color: C.ink, marginTop: 16, textTransform: 'uppercase' },

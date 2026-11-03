@@ -54,6 +54,9 @@ export async function migrate() {
       responded_via TEXT,
       created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS veg_count INT CHECK (veg_count >= 0);
+    UPDATE guests SET veg_count = CASE meal WHEN 'veg' THEN attending ELSE 0 END
+      WHERE veg_count IS NULL AND status = 'confirmed' AND meal IS NOT NULL;
     CREATE INDEX IF NOT EXISTS guests_event_idx ON guests(event_id);
   `);
 }

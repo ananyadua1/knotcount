@@ -7,6 +7,7 @@ import { Card, Label, Heading, Stat, Chip, Btn, IconBtn, tap } from '../componen
 import { Person } from '../components/art';
 import GuestSheet from '../components/GuestSheet';
 import ImportSheet from '../components/ImportSheet';
+import GuestTotals from '../components/GuestTotals';
 import { useStore, couple } from '../store';
 
 const FILTERS = [
@@ -21,6 +22,7 @@ export default function Guests({ go }) {
   const [filter, setFilter] = useState('all');
   const [sheet, setSheet] = useState({ open: false, guest: null });
   const [imp, setImp] = useState(false);
+  const [totals, setTotals] = useState(false);
 
   const list = useMemo(
     () => guests.filter((g) => filter === 'all' || g.status === filter).sort((a, b) => a.name.localeCompare(b.name)),
@@ -42,6 +44,20 @@ export default function Guests({ go }) {
           <Stat label="Confirmed" value={stats.confirmed} onPress={() => setFilter('confirmed')} />
           <Stat label="Pending" value={stats.pending} onPress={() => setFilter('pending')} />
         </View>
+
+        <Pressable onPress={() => { tap(); setTotals(true); }}>
+          <Card style={styles.totalRow}>
+            <View style={{ flex: 1 }}>
+              <Label style={{ fontSize: 9.5 }}>Total guests</Label>
+              <Text style={styles.totalNum}>{stats.people.coming}</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end', marginRight: 10 }}>
+              <Text style={styles.totalMeals}>{stats.people.veg} veg  ·  {stats.people.nonveg} non-veg</Text>
+              <Label style={{ marginTop: 4, fontSize: 9.5 }}>See who is coming</Label>
+            </View>
+            <Feather name="chevron-right" size={20} color={C.ink} />
+          </Card>
+        </Pressable>
 
         <Pressable onPress={() => { tap(); go('invite'); }}>
           <Card soft style={styles.inviteRow}>
@@ -96,12 +112,16 @@ export default function Guests({ go }) {
         )}
       </ScrollView>
       <GuestSheet visible={sheet.open} guest={sheet.guest} onClose={() => setSheet({ open: false, guest: null })} />
+      <GuestTotals visible={totals} onClose={() => setTotals(false)} />
       <ImportSheet visible={imp} onClose={() => setImp(false)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  totalRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, paddingVertical: 12 },
+  totalNum: { fontFamily: F.semi, fontSize: 34, color: C.ink, letterSpacing: -1, marginTop: 2 },
+  totalMeals: { fontFamily: F.semi, fontSize: 13, color: C.ink },
   inviteRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, paddingVertical: 14 },
   inviteTitle: { fontFamily: F.heavy, fontSize: 13, letterSpacing: 1.6, color: C.ink, textTransform: 'uppercase' },
   chatBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.ink, alignItems: 'center', justifyContent: 'center' },

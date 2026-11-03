@@ -32,11 +32,11 @@ h2{font-weight:800;font-size:32px;line-height:1.03;letter-spacing:-.04em;text-tr
 .round.s{background:var(--ink);color:var(--card)}
 .meals{display:flex;gap:12px;margin-top:14px}
 .meal{flex:1;border:1px solid var(--line);border-radius:18px;padding:18px 8px 14px;text-align:center;background:var(--paper);cursor:pointer;font:inherit;color:inherit}
-.meal.on{background:var(--card);border:1.5px solid var(--ink)}
 .meal b{display:block;font-weight:800;font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin-top:12px}
-.sel{display:inline-flex;align-items:center;gap:8px;margin-top:14px}
-.rd{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line);display:inline-block}
-.meal.on .rd{background:var(--ink);border-color:var(--ink)}
+.meal{cursor:default}
+.mstep{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px}
+.mnum{font-size:34px;font-weight:600;letter-spacing:-.03em;min-width:34px}
+.round[disabled]{opacity:.3;cursor:default}
 .clock{display:block;margin:6px auto 0}
 .time{font-weight:800;font-size:42px;letter-spacing:-.05em;text-align:center;margin-top:8px}
 .step{display:flex;justify-content:center;align-items:center;gap:18px;margin-top:8px}
@@ -55,7 +55,7 @@ h2{font-weight:800;font-size:32px;line-height:1.03;letter-spacing:-.04em;text-tr
 <script>
 const token = location.pathname.split('/').pop();
 const app = document.getElementById('app');
-const S = { yes: true, count: 1, meal: 'veg', mins: 19 * 60, data: null, done: false, busy: false };
+const S = { yes: true, veg: 1, nonveg: 0, mins: 19 * 60, data: null, done: false, busy: false };
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt = m => { const h = Math.floor(m / 60) % 24, mm = m % 60; return `${((h + 11) % 12) + 1}:${String(mm).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`; };
 
@@ -90,28 +90,31 @@ function render() {
   <div class="meta">${esc(e.date)}${e.time ? ' · ' + esc(e.time) : ''}</div><div class="meta m">${esc(e.venue)}</div></div></div>`;
   if (S.done) {
     app.innerHTML = hero + `<div class="card done"><div class="tick">✓</div><p class="label" style="margin-top:16px;color:var(--ink);font-weight:800">Thank you, ${first}</p>
-    <p style="color:var(--soft);margin:8px 0 0">${S.yes ? `We’ve noted ${S.count} of you coming${S.mins ? ' around ' + fmt(S.mins) : ''}. See you there!` : 'We’ll miss you. Thank you for letting us know.'}</p>
+    <p style="color:var(--soft);margin:8px 0 0">${S.yes ? `We’ve noted ${S.veg + S.nonveg} of you coming${S.mins ? ' around ' + fmt(S.mins) : ''}. See you there!` : 'We’ll miss you. Thank you for letting us know.'}</p>
     <button class="go ghost" id="again">Change my reply</button></div>`;
     document.getElementById('again').onclick = () => { S.done = false; render(); };
     return;
   }
-  const max = g.seats + 4;
+  const total = S.veg + S.nonveg;
   app.innerHTML = hero + `<h2>Hi ${first},<br>will you attend?</h2>
   <p class="hi">${g.status !== 'pending' ? 'You’ve already replied. You can change it below.' : 'Please let us know so we can plan for you.'}</p>
   <div class="row" style="margin-top:18px"><button class="yn ${S.yes ? 'on' : ''}" data-yn="1">Yes</button><button class="yn ${!S.yes ? 'on' : ''}" data-yn="0">No</button></div>
   <div class="${S.yes ? '' : 'hidden'}">
    <div class="sec"><span class="label">Number of guests</span>
-    <div class="count"><button class="round" data-c="-1">−</button><div class="big">${S.count}</div><button class="round s" data-c="1">+</button></div>
+    <div class="count" style="justify-content:center"><div class="big">${total}</div></div>
     <p style="text-align:center;color:var(--muted);font-size:12.5px;margin:2px 0 0">Invited for ${g.seats} ${g.seats > 1 ? 'seats' : 'seat'}</p></div>
-   <div class="sec"><span class="label">Food preference</span><div class="meals">
-    ${[['veg', 'Vegetarian'], ['nonveg', 'Non-veg']].map(([k, t]) => `<button class="meal ${S.meal === k ? 'on' : ''}" data-m="${k}">${plate(k === 'veg')}<b>${t}</b><span class="sel"><i class="rd"></i><span class="label" style="font-size:9.5px">${S.meal === k ? 'Selected' : 'Select'}</span></span></button>`).join('')}</div></div>
+   <div class="sec"><span class="label">Who eats what</span><div class="meals">
+    ${[['veg', 'Vegetarian'], ['nonveg', 'Non-veg']].map(([k, t]) => `<div class="meal">${plate(k === 'veg')}<b>${t}</b><div class="mstep"><button class="round" data-m="${k}" data-d="-1" ${(S[k] === 0 || total <= 1) ? 'disabled' : ''}>−</button><span class="mnum">${S[k]}</span><button class="round s" data-m="${k}" data-d="1" ${total >= g.seats ? 'disabled' : ''}>+</button></div></div>`).join('')}</div></div>
    <div class="sec"><span class="label">Expected arrival</span>${clock(S.mins)}<div class="time">${fmt(S.mins)}</div>
     <div class="step"><button class="round" data-t="-30">−</button><span class="label">± 30 min</span><button class="round s" data-t="30">+</button></div></div>
   </div>
-  <button class="go" id="go" ${S.busy ? 'disabled' : ''}>${S.yes ? `Confirm · ${S.count} ${S.count > 1 ? 'guests' : 'guest'}` : 'Confirm · not attending'}</button><div class="err" id="err"></div>`;
+  <button class="go" id="go" ${S.busy ? 'disabled' : ''}>${S.yes ? `Confirm · ${total} ${total > 1 ? 'guests' : 'guest'}` : 'Confirm · not attending'}</button><div class="err" id="err"></div>`;
   app.querySelectorAll('[data-yn]').forEach(b => b.onclick = () => { S.yes = b.dataset.yn === '1'; render(); });
-  app.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { S.count = Math.min(max, Math.max(1, S.count + +b.dataset.c)); render(); });
-  app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { S.meal = b.dataset.m; render(); });
+  app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
+    const k = b.dataset.m, n = S[k] + +b.dataset.d, t = total + +b.dataset.d;
+    if (n < 0 || t < 1 || t > g.seats) return;
+    S[k] = n; render();
+  });
   app.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.mins = (S.mins + +b.dataset.t + 1440) % 1440; render(); });
   document.getElementById('go').onclick = submit;
 }
@@ -120,7 +123,7 @@ async function submit() {
   S.busy = true; render();
   try {
     const r = await fetch(`/api/public/${token}/rsvp`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ attending: S.yes, count: S.count, meal: S.meal, arrival: S.mins }) });
+      body: JSON.stringify({ attending: S.yes, count: S.veg + S.nonveg, veg: S.veg, arrival: S.mins }) });
     const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Something went wrong');
     S.done = true; S.busy = false; render();
   } catch (e) { S.busy = false; render(); document.getElementById('err').textContent = e.message + '. Please try again.'; }
@@ -131,7 +134,9 @@ async function submit() {
     const r = await fetch(`/api/public/${token}`); const j = await r.json();
     if (!r.ok) throw new Error(j.error);
     S.data = j; const g = j.guest;
-    S.yes = g.status !== 'declined'; S.count = g.attending || Math.min(g.seats, g.seats); S.meal = g.meal || 'veg';
+    S.yes = g.status !== 'declined';
+    const n = Math.min(g.attending || g.seats, g.seats);
+    S.veg = g.vegCount != null ? Math.min(g.vegCount, n) : (g.meal === 'nonveg' ? 0 : n); S.nonveg = n - S.veg;
     S.mins = g.arrival != null ? g.arrival : parseTime(j.event.time);
     document.title = `You’re invited · ${j.event.bride} & ${j.event.groom}`;
     render();

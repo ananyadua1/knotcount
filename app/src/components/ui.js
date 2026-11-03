@@ -30,14 +30,15 @@ export function Btn({ title, onPress, kind = 'solid', icon, style, disabled }) {
   );
 }
 
-export const IconBtn = ({ name, onPress, solid, size = 40, style }) => (
+export const IconBtn = ({ name, onPress, solid, size = 40, style, disabled }) => (
   <Pressable
+    disabled={disabled}
     onPress={() => { tap(); onPress && onPress(); }}
     hitSlop={8}
     style={({ pressed }) => [
       { width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center',
         borderWidth: 1, borderColor: solid ? C.ink : C.ink, backgroundColor: solid ? C.ink : 'transparent' },
-      pressed && { opacity: 0.7 }, style,
+      pressed && { opacity: 0.7 }, disabled && { opacity: 0.25 }, style,
     ]}
   >
     <Feather name={name} size={size * 0.45} color={solid ? C.card : C.ink} />

@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform, StyleSheet, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { C, F } from '../theme';
-import { Btn, Field, Label, Segmented, Chip, IconBtn } from './ui';
-import { useStore } from '../store';
+import { Btn, Field, Label, Segmented, IconBtn } from './ui';
+import MealSplit from './MealSplit';
+import { useStore, splitOf, fitSplit } from '../store';
 
-const blank = { name: '', phone: '', email: '', side: 'bride', seats: 1, status: 'pending', attending: 0, meal: null };
+const blank = { name: '', phone: '', email: '', side: 'bride', seats: 1, status: 'pending', attending: 0, vegCount: null };
 
 export default function GuestSheet({ guest, visible, onClose }) {
   const { addGuests, updateGuest, removeGuest } = useStore();
@@ -14,12 +15,26 @@ export default function GuestSheet({ guest, visible, onClose }) {
 
   useEffect(() => { if (visible) setG(guest && guest.id ? { ...guest } : { ...blank, ...(guest || {}) }); }, [visible, guest]);
   const set = (k, v) => setG((x) => ({ ...x, [k]: v }));
+  // fewer seats can't leave more people coming than the invite covers
+  const setSeats = (n) => setG((x) => {
+    const seats = Math.max(1, n);
+    if (x.status !== 'confirmed') return { ...x, seats };
+    const s = fitSplit(splitOf(x), seats);
+    return { ...x, seats, attending: s.veg + s.nonveg, vegCount: s.veg };
+  });
+  const setStatus = (status) => setG((x) => {
+    if (status !== 'confirmed') return { ...x, status, attending: 0, vegCount: null };
+    const s = splitOf(x, x.attending || x.seats);
+    return { ...x, status, attending: s.veg + s.nonveg, vegCount: s.veg };
+  });
 
   const save = () => {
     if (!g.name.trim()) return;
     const clean = { ...g, name: g.name.trim(), seats: Math.max(1, g.seats) };
-    if (clean.status === 'confirmed' && !clean.attending) clean.attending = clean.seats;
-    if (clean.status !== 'confirmed') clean.attending = 0;
+    if (clean.status === 'confirmed') {
+      const s = splitOf(clean);
+      clean.attending = s.veg + s.nonveg; clean.vegCount = s.veg;
+    } else { clean.attending = 0; clean.vegCount = null; }
     if (isNew) addGuests([clean]); else updateGuest(g.id, clean);
     onClose();
   };
@@ -57,34 +72,30 @@ export default function GuestSheet({ guest, visible, onClose }) {
                 <Text style={st.hint}>People this invite covers</Text>
               </View>
               <View style={st.stepper}>
-                <IconBtn name="minus" size={34} onPress={() => set('seats', Math.max(1, g.seats - 1))} />
+                <IconBtn name="minus" size={34} onPress={() => setSeats(g.seats - 1)} />
                 <Text style={st.num}>{g.seats}</Text>
-                <IconBtn name="plus" size={34} solid onPress={() => set('seats', g.seats + 1)} />
+                <IconBtn name="plus" size={34} solid onPress={() => setSeats(g.seats + 1)} />
               </View>
             </View>
             <Label style={{ marginBottom: 8 }}>Response</Label>
             <Segmented
               value={g.status}
-              onChange={(v) => setG((x) => ({ ...x, status: v, attending: v === 'confirmed' ? x.attending || x.seats : 0 }))}
+              onChange={setStatus}
               options={[{ label: 'Pending', value: 'pending' }, { label: 'Attending', value: 'confirmed' }, { label: 'Declined', value: 'declined' }]}
             />
-            {g.status === 'confirmed' && (
-              <View style={{ marginTop: 16 }}>
-                <View style={[st.row, { marginTop: 0 }]}>
-                  <Label>Coming</Label>
-                  <View style={st.stepper}>
-                    <IconBtn name="minus" size={34} onPress={() => set('attending', Math.max(1, g.attending - 1))} />
-                    <Text style={st.num}>{g.attending}</Text>
-                    <IconBtn name="plus" size={34} solid onPress={() => set('attending', Math.min(g.seats + 4, g.attending + 1))} />
+            {g.status === 'confirmed' && (() => {
+              const s = splitOf(g);
+              return (
+                <View style={{ marginTop: 16 }}>
+                  <View style={[st.row, { marginTop: 0, marginBottom: 14 }]}>
+                    <Label>Coming</Label>
+                    <Text style={st.num}>{s.veg + s.nonveg}</Text>
                   </View>
+                  <MealSplit veg={s.veg} nonveg={s.nonveg} max={g.seats}
+                    onChange={(veg, nonveg) => setG((x) => ({ ...x, attending: veg + nonveg, vegCount: veg }))} />
                 </View>
-                <Label style={{ marginBottom: 8 }}>Food</Label>
-                <View style={{ flexDirection: 'row' }}>
-                  <Chip title="Veg" tone={C.leaf} active={g.meal === 'veg'} onPress={() => set('meal', 'veg')} />
-                  <Chip title="Non-veg" tone={C.sindoor} active={g.meal === 'nonveg'} onPress={() => set('meal', 'nonveg')} />
-                </View>
-              </View>
-            )}
+              );
+            })()}
             <View style={{ height: 22 }} />
             <Btn title={isNew ? 'Add guest' : 'Save changes'} onPress={save} disabled={!g.name.trim()} />
             {!isNew && (
