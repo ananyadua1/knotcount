@@ -1,12 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const DEFAULT_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000';
+const DEFAULT_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? 'http://10.0.2.2:3000' : 'https://knotcount-server.onrender.com');
 let base = DEFAULT_URL;
 let token = null;
 let onAuthFail = () => {};
 
 export const setAuthFailHandler = (fn) => { onAuthFail = fn; };
 export const getBase = () => base;
+export const PRIVACY_URL = () => base + '/privacy';
 
 export async function loadSession() {
   const [b, t] = await Promise.all([AsyncStorage.getItem('kc.server'), AsyncStorage.getItem('kc.token')]);

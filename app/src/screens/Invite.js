@@ -1,63 +1,95 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Share, Pressable } from 'react-native';
+import React from 'react';
+import { View, Text, ScrollView, StyleSheet, Pressable, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { C, F, shadow } from '../theme';
-import { Label, Heading, Btn, Field, IconBtn, Card, tap } from '../components/ui';
-import { useStore, couple, inviteText, compose } from '../store';
+import { Label, Heading, Btn, Field, tap } from '../components/ui';
+import InviteCard, { GOLD, MAROON, SAGE } from '../components/InviteCard';
+import { useStore, DESIGNS, inviteText, compose } from '../store';
 import { sendChat } from '../send';
+
+// the little swatch shown for each design in the chooser
+const SWATCH = {
+  classic: { bg: C.card, border: C.ink, fg: C.ink },
+  royal: { bg: MAROON, border: MAROON, fg: GOLD },
+  garden: { bg: SAGE, border: C.leaf, fg: C.leaf },
+  custom: { bg: C.paper, border: C.muted, fg: C.ink },
+};
 
 export default function Invite() {
   const { wedding, setWedding, guests, updateGuest } = useStore();
-  const [edit, setEdit] = useState(false);
   const set = (k) => (v) => setWedding((w) => ({ ...w, [k]: v }));
+  const design = wedding.template || 'classic';
   const todo = guests.filter((g) => !g.invited);
   const sent = guests.filter((g) => g.invited);
+  const text = inviteText(wedding);
+  const ownText = !!wedding.invite && wedding.invite.trim() !== '' && !wedding.invite.includes('{couple} are getting married');
 
   const send = async (g) => {
-    const ok = await sendChat(g, compose(inviteText(wedding), g, wedding));
+    if (!text.trim()) { Alert.alert('Write your invitation first', 'Paste or type the text you want to send in the Your message box.'); return; }
+    const ok = await sendChat(g, compose(text, g, wedding));
     if (ok) updateGuest(g.id, { invited: true });
   };
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: 120 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       <Label style={{ marginTop: 26 }}>Invitation</Label>
-      <Heading style={{ marginTop: 8 }}>One message,{'\n'}every guest.</Heading>
+      <Heading size={28} style={{ marginTop: 6 }}>Design your{'\n'}invitation</Heading>
 
-      <View style={[styles.card, shadow]}>
-        <View style={styles.inner}>
-          <Label style={{ letterSpacing: 4 }}>{(wedding.bride || 'A')[0]} & {(wedding.groom || 'R')[0]}</Label>
-          <Text style={styles.invited}>You’re{'\n'}invited</Text>
-          <Text style={styles.names}>{couple(wedding)}</Text>
-          <View style={styles.rule} />
-          <Text style={styles.meta}>{wedding.date} · {wedding.time}</Text>
-          <Text style={[styles.meta, { color: C.muted }]}>{wedding.venue}</Text>
-        </View>
+      <Label style={{ marginTop: 22 }}>Choose a design</Label>
+      <View style={styles.tiles}>
+        {DESIGNS.map((d) => {
+          const s = SWATCH[d.k], on = design === d.k;
+          return (
+            <Pressable key={d.k} onPress={() => { tap(); set('template')(d.k); }} style={styles.tileWrap}>
+              <View style={[styles.tile, { backgroundColor: s.bg, borderColor: on ? C.ink : s.border }, on && styles.tileOn, d.k === 'custom' && { borderStyle: 'dashed' }]}>
+                {d.k === 'custom'
+                  ? <Feather name="edit-3" size={20} color={s.fg} />
+                  : <Text style={[styles.tileMono, { color: s.fg }]}>{(wedding.bride || 'A')[0]}&{(wedding.groom || 'R')[0]}</Text>}
+                {on && <View style={styles.tick}><Feather name="check" size={11} color={C.card} /></View>}
+              </View>
+              <Text style={[styles.tileName, on && { color: C.ink, fontFamily: F.heavy }]}>{d.t}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
-      <Pressable onPress={() => { tap(); setEdit((e) => !e); }} style={styles.editRow}>
-        <Label style={{ color: C.ink }}>Edit details</Label>
-        <Feather name={edit ? 'chevron-up' : 'chevron-down'} size={18} color={C.ink} />
-      </Pressable>
-      {edit && (
-        <View style={{ marginTop: 8 }}>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Field style={{ flex: 1 }} label="Bride" value={wedding.bride} onChangeText={set('bride')} />
-            <Field style={{ flex: 1 }} label="Groom" value={wedding.groom} onChangeText={set('groom')} />
-          </View>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Field style={{ flex: 1.5 }} label="Date" value={wedding.date} onChangeText={set('date')} />
-            <Field style={{ flex: 1 }} label="Time" value={wedding.time} onChangeText={set('time')} />
-          </View>
-          <Field label="Venue" value={wedding.venue} onChangeText={set('venue')} />
-        </View>
-      )}
+      <View style={[{ marginTop: 20 }, design !== 'custom' && shadow]}>
+        <InviteCard w={wedding} design={design} />
+      </View>
 
-      <Label style={{ marginTop: 28 }}>Your message</Label>
-      <Text style={styles.hint}>Paste your own text or edit this one. Each guest’s personal reply link is added at the end for you.</Text>
-      <Field label="" value={inviteText(wedding)} onChangeText={set('invite')} multiline lines={9} style={{ marginTop: 8 }} />
+      <Label style={{ marginTop: 30 }}>Wedding details</Label>
+      <Text style={styles.hint}>These appear on the card, in your message, and on the page your guests open.</Text>
+      <View style={{ marginTop: 14 }}>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <Field style={{ flex: 1 }} label="Bride" value={wedding.bride} onChangeText={set('bride')} autoCapitalize="words" />
+          <Field style={{ flex: 1 }} label="Groom" value={wedding.groom} onChangeText={set('groom')} autoCapitalize="words" />
+        </View>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <Field style={{ flex: 1.5 }} label="Date" value={wedding.date} onChangeText={set('date')} placeholder="Sat, 20 Feb 2027" />
+          <Field style={{ flex: 1 }} label="Time" value={wedding.time} onChangeText={set('time')} placeholder="7:00 PM" />
+        </View>
+        <Field label="Venue" value={wedding.venue} onChangeText={set('venue')} placeholder="Hotel / hall, city" />
+        <Field label="Extra line (optional)" value={wedding.extra} onChangeText={set('extra')} placeholder="Dress code, reception to follow…" />
+      </View>
+
+      <Label style={{ marginTop: 14 }}>Your message</Label>
+      <Text style={styles.hint}>
+        {design === 'custom'
+          ? 'Paste or type your own invitation. Each guest’s personal reply link is added at the end for you.'
+          : 'This is the wording for the design you chose. Edit it, or paste your own. Each guest’s personal reply link is added at the end.'}
+      </Text>
+      <Field label="" value={text} onChangeText={set('invite')} multiline lines={9} style={{ marginTop: 8 }}
+        placeholder={design === 'custom' ? 'Paste your invitation text here' : undefined} />
+      {design !== 'custom' && ownText && (
+        <Pressable onPress={() => { tap(); set('invite')(''); }} style={{ alignSelf: 'flex-start', marginBottom: 14 }}>
+          <Label style={{ color: C.ink }}>Use the {DESIGNS.find((d) => d.k === design).t} wording again</Label>
+        </Pressable>
+      )}
       <Label style={{ fontSize: 9.5 }}>What a guest receives</Label>
       <View style={styles.preview}>
-        <Text style={styles.previewT}>{compose(inviteText(wedding), { name: 'Guest', link: guests[0]?.link || 'their personal reply link' }, wedding)}</Text>
+        <Text style={styles.previewT}>
+          {text.trim() ? compose(text, { name: 'Guest', link: guests[0]?.link || 'their personal reply link' }, wedding) : 'Nothing yet. Write your invitation above.'}
+        </Text>
       </View>
 
       <View style={styles.sectionHead}>
@@ -93,17 +125,17 @@ export default function Invite() {
 }
 
 const styles = StyleSheet.create({
-  card: { marginTop: 26, borderRadius: 22, backgroundColor: C.card, borderWidth: 1, borderColor: C.ink, padding: 8 },
-  inner: { borderRadius: 16, borderWidth: 1, borderColor: C.line, paddingVertical: 30, paddingHorizontal: 22, alignItems: 'center' },
-  invited: { fontFamily: F.serif, fontSize: 54, lineHeight: 56, color: C.ink, textAlign: 'center', marginTop: 16 },
-  names: { fontFamily: F.heavy, fontSize: 13, letterSpacing: 3, color: C.sindoor, marginTop: 18, textTransform: 'uppercase' },
-  rule: { width: 28, height: 1.5, backgroundColor: C.ink, marginVertical: 18 },
-  meta: { fontFamily: F.med, fontSize: 13, color: C.ink, marginTop: 3, textAlign: 'center' },
-  editRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: C.line },
-  sectionHead: { marginTop: 28, marginBottom: 6 },
+  tiles: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  tileWrap: { flex: 1, alignItems: 'center' },
+  tile: { width: '100%', height: 74, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  tileOn: { borderWidth: 2.5 },
+  tileMono: { fontFamily: F.serif, fontSize: 20 },
+  tileName: { fontFamily: F.med, fontSize: 10, letterSpacing: 1.4, color: C.muted, marginTop: 8, textTransform: 'uppercase' },
+  tick: { position: 'absolute', right: 6, top: 6, width: 18, height: 18, borderRadius: 9, backgroundColor: C.ink, alignItems: 'center', justifyContent: 'center' },
   hint: { fontFamily: F.reg, fontSize: 12.5, color: C.muted, lineHeight: 18, marginTop: 6 },
   preview: { marginTop: 8, borderRadius: 14, backgroundColor: C.wash, padding: 14 },
   previewT: { fontFamily: F.reg, fontSize: 13.5, lineHeight: 20, color: C.ink },
+  sectionHead: { marginTop: 28, marginBottom: 6 },
   none: { fontFamily: F.reg, fontSize: 14, color: C.muted, marginTop: 8, lineHeight: 20 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.line },
   gname: { fontFamily: F.semi, fontSize: 15, color: C.ink },

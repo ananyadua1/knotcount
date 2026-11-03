@@ -26,8 +26,16 @@ Note: the free Render plan sleeps after 15 minutes without traffic, so the first
    ```
    EAS gives you a download link for the `.apk`.
 
-## 4. Optional: email reminders
-Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` on Render (Brevo's free plan or a Gmail app password both work). The app then shows "Email all pending" and a switch for automatic reminders every 3 days (job runs daily at 10:00 IST).
+## 4. Email: forgot-password codes and reminders
+Render's free plan blocks the ports SMTP uses (25, 465, 587), so Gmail's SMTP will not work there. Send through your Gmail over HTTPS instead, with a small Google script:
+
+1. Signed in to the Gmail you want emails to come from, open https://script.google.com and choose New project.
+2. Paste in `server/mail-relay.gs` (replace the default code) and change `SECRET` to a long random string.
+3. Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone. Deploy, and allow access when Google asks.
+4. Copy the Web app URL.
+5. On Render > knotcount-server > Environment add `MAIL_WEBHOOK_URL` (that URL) and `MAIL_WEBHOOK_SECRET` (your `SECRET`), then save. Render redeploys.
+
+This switches on "Forgot password?" in the app, "Email all pending", and the automatic reminders every 3 days (daily job at 10:00 IST). A free Gmail can send about 100 emails a day through a script. On a paid Render plan you can use `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` instead.
 
 ## What stays manual
 WhatsApp does not let any app send messages on your behalf without the paid WhatsApp Business API. The app opens each message ready-typed with the guest's link; you tap send. Everything after that (the guest's reply, totals, caterer count) is automatic.

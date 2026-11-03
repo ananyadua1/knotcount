@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, View, Text, FlatList, Pressable, StyleSheet, TextInput, Platform } from 'react-native';
+import { Modal, View, Text, FlatList, Pressable, StyleSheet, TextInput, Platform, Linking } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import * as Contacts from 'expo-contacts';
+import * as Contacts from 'expo-contacts/legacy';
 import { C, F } from '../theme';
 import { Btn, Label, IconBtn, tap } from './ui';
 import { useStore } from '../store';
@@ -12,22 +12,28 @@ export default function ImportSheet({ visible, onClose }) {
   const [sel, setSel] = useState({});
   const [q, setQ] = useState('');
   const [msg, setMsg] = useState('');
+  const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
-    setSel({}); setQ(''); setMsg('Loading contacts…');
+    setSel({}); setQ(''); setMsg('Loading contacts…'); setBlocked(false);
     (async () => {
       try {
         if (Platform.OS === 'web') { setMsg('Contacts are only available on the phone.'); return; }
-        const { status } = await Contacts.requestPermissionsAsync();
-        if (status !== 'granted') { setMsg('Allow contacts access in Settings to import guests.'); return; }
+        let perm = await Contacts.getPermissionsAsync();
+        if (perm.status !== 'granted' && perm.canAskAgain !== false) perm = await Contacts.requestPermissionsAsync();
+        if (perm.status !== 'granted') {
+          setBlocked(true);
+          setMsg('KnotCount needs permission to read your contacts. Open Settings > Permissions > Contacts and choose Allow, then come back.');
+          return;
+        }
         const { data } = await Contacts.getContactsAsync({ fields: [Contacts.Fields.PhoneNumbers] });
         const have = new Set(guests.map((g) => g.name.toLowerCase()));
         const rows = data.filter((c) => c.name && !have.has(c.name.toLowerCase()))
           .map((c) => ({ id: c.id, name: c.name, phone: c.phoneNumbers && c.phoneNumbers[0] ? c.phoneNumbers[0].number : '' }))
           .sort((a, b) => a.name.localeCompare(b.name));
         setAll(rows); setMsg(rows.length ? '' : 'No new contacts found.');
-      } catch (e) { setMsg('Could not read contacts.'); }
+      } catch (e) { setMsg(`Could not read contacts. ${e && e.message ? e.message : ''}`.trim()); }
     })();
   }, [visible]);
 
@@ -47,6 +53,7 @@ export default function ImportSheet({ visible, onClose }) {
         </View>
         <TextInput value={q} onChangeText={setQ} placeholder="Search" placeholderTextColor={C.muted} style={st.search} />
         {msg ? <Text style={st.msg}>{msg}</Text> : null}
+        {blocked && <Btn title="Open Settings" kind="line" icon="settings" onPress={() => Linking.openSettings()} style={{ marginHorizontal: 22, marginTop: 18 }} />}
         <FlatList
           data={rows} keyExtractor={(c) => c.id} keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => {

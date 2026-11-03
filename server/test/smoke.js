@@ -2,6 +2,7 @@
 import { migrate, pool } from '../src/db.js';
 import { createApp } from '../src/app.js';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 
 await migrate();
 const app = createApp();
@@ -69,6 +70,39 @@ r = await call('PATCH', `/api/guests/${sharma.id}`, {}, T); assert.equal(r.statu
 r = await call('DELETE', `/api/guests/${priya.id}`, null, T);
 r = await call('GET', '/api/guests', null, T); assert.equal(r.json.guests.length, 1);
 const html = await (await fetch(`${base}/r/${sharma.token}`)).text(); assert.ok(html.includes('will you attend'));
+
+
+// invite design + extra line are saved and shown on the guest page's data
+r = await call('PUT', '/api/event', { template: 'royal', extra: 'Dress code: festive' }, T);
+assert.equal(r.json.event.template, 'royal'); assert.equal(r.json.event.extra, 'Dress code: festive');
+r = await call('PUT', '/api/event', { template: 'nonsense' }, T); assert.equal(r.json.event.template, 'royal'); // unknown design ignored
+r = await call('POST', '/api/guests', { name: 'Gupta family', seats: 2 }, T);
+r = await call('GET', `/api/public/${r.json.guests[0].token}`); assert.equal(r.json.event.template, 'royal'); assert.equal(r.json.event.extra, 'Dress code: festive');
+
+// forgot / reset password, with a fake mail relay standing in for the Gmail script
+r = await call('POST', '/api/auth/forgot', { email }); assert.equal(r.status, 501); // no mail configured yet
+const mails = [];
+const relay = http.createServer((req, res) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => { mails.push(JSON.parse(b)); res.end('ok'); }); }).listen(0);
+process.env.MAIL_WEBHOOK_URL = `http://localhost:${relay.address().port}`; process.env.MAIL_WEBHOOK_SECRET = 'shh';
+r = await call('POST', '/api/auth/forgot', { email: 'nobody@example.com' }); assert.equal(r.status, 200); assert.equal(mails.length, 0);
+r = await call('POST', '/api/auth/forgot', { email }); assert.equal(r.status, 200); assert.equal(mails.length, 1);
+assert.equal(mails[0].to, email); assert.equal(mails[0].secret, 'shh');
+const code = /\b(\d{6})\b/.exec(mails[0].text)[1];
+r = await call('POST', '/api/auth/reset', { email, code: '000000' === code ? '111111' : '000000', password: 'brandnew123' }); assert.equal(r.status, 400);
+r = await call('POST', '/api/auth/reset', { email, code, password: 'short' }); assert.equal(r.status, 400);
+r = await call('POST', '/api/auth/reset', { email, code, password: 'brandnew123' }); assert.equal(r.status, 200); assert.ok(r.json.token);
+r = await call('POST', '/api/auth/login', { email, password: 'longenough1' }); assert.equal(r.status, 401); // old password gone
+r = await call('POST', '/api/auth/login', { email, password: 'brandnew123' }); assert.equal(r.status, 200);
+r = await call('POST', '/api/auth/reset', { email, code, password: 'another12345' }); assert.equal(r.status, 400); // a code works once
+relay.close();
+
+// account deletion removes everything
+r = await call('DELETE', '/api/account', null, T); assert.equal(r.status, 200);
+r = await call('GET', '/api/guests', null, T); assert.equal(r.status, 401);
+r = await call('GET', `/api/public/${sharma.token}`); assert.equal(r.status, 404);
+r = await call('POST', '/api/auth/login', { email, password: 'longenough1' }); assert.equal(r.status, 401);
+assert.equal((await fetch(`${base}/privacy`)).status, 200);
+assert.equal((await fetch(`${base}/delete-account`)).status, 200);
 
 console.log('all server checks passed');
 srv.close(); await pool.end();

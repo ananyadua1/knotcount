@@ -4,6 +4,7 @@ import { api, loadSession, setToken, setAuthFailHandler } from './api';
 
 const blankWedding = {
   bride: '', groom: '', date: '', time: '7:00 PM', venue: '', invite: '', reminder: '', autoReminders: false,
+  template: 'classic', extra: '',
 };
 
 const Ctx = createContext(null);
@@ -52,7 +53,14 @@ export function StoreProvider({ children }) {
       const r = await api('POST', '/api/auth/register', { name, email, password });
       await setToken(r.token); setLoaded(false); setAuthed(true); return r.user;
     };
+    const forgotPassword = (email) => api('POST', '/api/auth/forgot', { email });
+    const resetPassword = async (email, code, password) => {
+      const r = await api('POST', '/api/auth/reset', { email, code, password });
+      await setToken(r.token); setLoaded(false); setAuthed(true); return r.user;
+    };
     const logout = async () => { await setToken(null); setAuthed(false); setGuests([]); setWeddingState(blankWedding); setLoaded(false); };
+
+    const deleteAccount = async () => { await api('DELETE', '/api/account'); await logout(); };
 
     const addGuests = async (list) => {
       const r = await api('POST', '/api/guests', { guests: list });
@@ -107,20 +115,36 @@ export function StoreProvider({ children }) {
       sent: guests.filter((x) => x.invited).length,
       households: guests.length,
     };
-    return { booting, authed, loaded, error, mail, guests, wedding, stats, refresh, login, register, logout,
+    return { booting, authed, loaded, error, mail, guests, wedding, stats, refresh, login, register, forgotPassword, resetPassword, logout, deleteAccount,
       addGuests, updateGuest, removeGuest, respond, setWedding };
   }, [booting, authed, loaded, error, mail, guests, wedding, refresh]);
 
   return <Ctx.Provider value={api2}>{children}</Ctx.Provider>;
 }
 
-// The invite and reminder are plain text the host pastes or types. Until they do, a ready message is built from the wedding details.
+// The invite and reminder are plain text the host pastes or types. Until they do, the chosen design supplies ready wording built from the wedding details.
 const oldDefault = (s) => !s || !s.trim() || s.includes('{couple} are getting married') || s.includes('confirm your attendance at {couple}');
+
+export const DESIGNS = [
+  { k: 'classic', t: 'Classic' },
+  { k: 'royal', t: 'Royal' },
+  { k: 'garden', t: 'Garden' },
+  { k: 'custom', t: 'Custom' },
+];
+
+const whenWhere = (w) => [[w.date, w.time].filter(Boolean).join(', '), w.venue, w.extra].filter(Boolean).join('\n');
+const WORDING = {
+  classic: (w) => `Namaste! ${couple(w)} are getting married and would love to have you with them.\n\n${whenWhere(w)}\n\nPlease tell us if you can make it, it takes 20 seconds:`,
+  royal: (w) => `Together with their families,\n${couple(w)}\nrequest the pleasure of your company at their wedding.\n\n${whenWhere(w)}\n\nKindly let us know if you can join us:`,
+  garden: (w) => `We’re getting married! ${couple(w)} would love for you to celebrate with us.\n\n${whenWhere(w)}\n\nTap here to tell us you’re coming:`,
+};
+// the wording a design starts with, tidied so blank details leave no gaps
+export const designText = (w) => (WORDING[w.template] || WORDING.classic)(w).replace(/\n{3,}/g, '\n\n');
+
 export const inviteText = (w) => {
-  if (!oldDefault(w.invite)) return w.invite;
-  const when = [w.date, w.time].filter(Boolean).join(', ');
-  const lines = [`Namaste! ${couple(w)} are getting married and would love to have you with them.`, '', when, w.venue].filter((l, i) => i < 2 || l);
-  return lines.join('\n') + '\n\nPlease tell us if you can make it, it takes 20 seconds:';
+  const own = !oldDefault(w.invite);
+  if (w.template === 'custom') return own ? w.invite : '';
+  return own ? w.invite : designText(w);
 };
 export const reminderText = (w) =>
   oldDefault(w.reminder)

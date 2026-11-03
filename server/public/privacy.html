@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KnotCount Privacy Policy</title>
+<style>body{margin:0;background:#F4EFE6;color:#1A1714;font:16px/1.6 system-ui,sans-serif}main{max-width:680px;margin:0 auto;padding:32px 22px 60px}h1{font-size:28px}h2{font-size:18px;margin-top:28px}a{color:#7B1E3A}</style></head>
+<body><main>
+<h1>KnotCount Privacy Policy</h1>
+<p>Last updated: 3 November 2026</p>
+<p>KnotCount helps a couple manage a wedding guest list and collect RSVPs. This policy explains what we collect and why.</p>
+
+<h2>What we collect</h2>
+<p><b>Your account:</b> name, email address and a password (stored only as a salted hash).</p>
+<p><b>Your wedding details:</b> names, date, venue and message templates you enter.</p>
+<p><b>Your guest list:</b> for each guest, the name, phone number, email address, side, number of seats, notes, and their reply (attending or not, headcount, veg/non-veg split, arrival time, note). You enter this yourself or import it from your contacts.</p>
+<p><b>Guest replies:</b> a guest who opens their personal link can submit a reply without an account. We store only what they submit.</p>
+
+<h2>Contacts permission</h2>
+<p>The app asks to read your phone contacts only when you tap Import. Only the names and phone numbers you select are copied to your guest list. Contacts are not uploaded in bulk and are not used for anything else.</p>
+
+<h2>How we use it</h2>
+<p>To run the app: show your list and totals, produce guest links, and (if enabled by you) send reminder emails to guests you added. We do not sell your data, show ads, or use it for advertising or analytics. We do not use third-party trackers in the app.</p>
+
+<h2>Where it is stored and who processes it</h2>
+<p>Data is stored in a PostgreSQL database and served by our hosting providers over encrypted (HTTPS) connections. Reminder emails, if used, go through an SMTP provider. Data is shared with these service providers only to operate the app, or if required by law.</p>
+
+<h2>Retention and deletion</h2>
+<p>We keep your data until you delete your account. In the app, open the menu at the top right and choose Delete account. You can also delete your account from the web at <a href="/delete-account">/delete-account</a>. Deletion immediately and permanently removes your account, wedding details, guest list and all replies.</p>
+
+<h2>Guests</h2>
+<p>If you received an invitation link, the person who invited you controls your information and can remove it. Contact them, or us, to have it deleted.</p>
+
+<h2>Children</h2>
+<p>The app is not directed to children under 13.</p>
+
+<h2>Contact</h2>
+<p>Questions or requests: <a id="m" href="#">see the contact email on our Google Play listing</a>.</p>
+<script>fetch('/api/support').then(r=>r.json()).then(j=>{if(j.email){var a=document.getElementById('m');a.href='mailto:'+j.email;a.textContent=j.email}}).catch(function(){})</script>
+</main></body></html>

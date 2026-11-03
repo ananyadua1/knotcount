@@ -57,6 +57,15 @@ export async function migrate() {
     ALTER TABLE guests ADD COLUMN IF NOT EXISTS veg_count INT CHECK (veg_count >= 0);
     UPDATE guests SET veg_count = CASE meal WHEN 'veg' THEN attending ELSE 0 END
       WHERE veg_count IS NULL AND status = 'confirmed' AND meal IS NOT NULL;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS template TEXT NOT NULL DEFAULT 'classic';
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS extra_text TEXT NOT NULL DEFAULT '';
+    CREATE TABLE IF NOT EXISTS password_resets (
+      user_id    INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      code_hash  TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      attempts   INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
     CREATE INDEX IF NOT EXISTS guests_event_idx ON guests(event_id);
   `);
 }

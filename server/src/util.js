@@ -19,7 +19,9 @@ export const guestOut = (g, base) => ({
 export const eventOut = (e) => ({
   bride: e.bride, groom: e.groom, date: e.date_text, time: e.time_text, venue: e.venue,
   invite: e.invite_tpl, reminder: e.reminder_tpl, autoReminders: e.auto_reminders,
+  template: e.template, extra: e.extra_text,
 });
+export const TEMPLATES = ['classic', 'royal', 'garden', 'custom'];
 
 // The host's own invite and reminder texts are plain text. Blank means "use the standard wording"
 // (the app shows the same wording for blank), and the guest's link is added at the end.

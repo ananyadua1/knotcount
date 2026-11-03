@@ -4,17 +4,18 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { randomInt } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { q } from './db.js';
-import { newToken, baseUrl, guestOut, eventOut, defaultEvent, fillTpl, str, int, vegOf, mealOf } from './util.js';
+import { newToken, baseUrl, guestOut, eventOut, defaultEvent, fillTpl, str, int, vegOf, mealOf, TEMPLATES } from './util.js';
 import { sendMail, mailEnabled } from './mail.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SECRET = process.env.JWT_SECRET || 'dev-only-secret-change-me';
 if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
-  console.warn('WARNING: JWT_SECRET is not set. Set it in your host’s environment settings.');
+  throw new Error('JWT_SECRET must be set in production.');
 }
+const SECRET = process.env.JWT_SECRET || 'dev-only-secret-change-me';
 
 export function createApp() {
   const app = express();
@@ -27,6 +28,7 @@ export function createApp() {
   const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false });
   const rsvpLimiter = rateLimit({ windowMs: 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
 
+  app.get('/api/support', (_req, res) => res.json({ email: process.env.SUPPORT_EMAIL || '' }));
   app.get('/health', wrap(async (_req, res) => { await q('select 1'); res.json({ ok: true }); }));
 
   /* ---------- auth ---------- */
@@ -62,6 +64,55 @@ export function createApp() {
     res.json({ token: sign(u), user: { id: u.id, email: u.email, name: u.name } });
   }));
 
+  /* ---------- forgot / reset password (6-digit code by email) ---------- */
+  app.post('/api/auth/forgot', authLimiter, wrap(async (req, res) => {
+    const email = str(req.body.email, 200).toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'Enter a valid email.' });
+    if (!mailEnabled()) return res.status(501).json({ error: 'Password reset by email is not set up on this server yet.' });
+    const u = (await q('SELECT id FROM users WHERE email=$1', [email])).rows[0];
+    // same answer whether or not the account exists, so this can't be used to find who has one
+    if (u) {
+      const last = (await q('SELECT created_at FROM password_resets WHERE user_id=$1', [u.id])).rows[0];
+      if (!last || Date.now() - new Date(last.created_at).getTime() > 60 * 1000) {
+        const code = String(randomInt(0, 1000000)).padStart(6, '0');
+        await q(
+          `INSERT INTO password_resets(user_id, code_hash, expires_at, attempts, created_at)
+           VALUES($1, $2, now() + interval '15 minutes', 0, now())
+           ON CONFLICT (user_id) DO UPDATE SET code_hash=$2, expires_at=EXCLUDED.expires_at, attempts=0, created_at=now()`,
+          [u.id, await bcrypt.hash(code, 8)]
+        );
+        try {
+          await sendMail(email, 'Your KnotCount password reset code', `Your KnotCount code is ${code}\n\nIt works for 15 minutes. If you didn’t ask to reset your password, you can ignore this email.`);
+        } catch (e) {
+          console.error('reset mail failed', e.message);
+          return res.status(502).json({ error: 'Could not send the email right now. Please try again in a few minutes.' });
+        }
+      }
+    }
+    res.json({ ok: true });
+  }));
+
+  app.post('/api/auth/reset', authLimiter, wrap(async (req, res) => {
+    const email = str(req.body.email, 200).toLowerCase();
+    const code = str(req.body.code, 10);
+    const password = typeof req.body.password === 'string' ? req.body.password : '';
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    const u = (await q('SELECT * FROM users WHERE email=$1', [email])).rows[0];
+    const r = u && (await q('SELECT * FROM password_resets WHERE user_id=$1', [u.id])).rows[0];
+    if (!r || new Date(r.expires_at) < new Date()) return res.status(400).json({ error: 'That code has expired. Ask for a new one.' });
+    if (r.attempts >= 5) {
+      await q('DELETE FROM password_resets WHERE user_id=$1', [u.id]);
+      return res.status(400).json({ error: 'Too many wrong tries. Ask for a new code.' });
+    }
+    if (!(await bcrypt.compare(code, r.code_hash))) {
+      await q('UPDATE password_resets SET attempts=attempts+1 WHERE user_id=$1', [u.id]);
+      return res.status(400).json({ error: 'That code is not right.' });
+    }
+    await q('UPDATE users SET password_hash=$1 WHERE id=$2', [await bcrypt.hash(password, 11), u.id]);
+    await q('DELETE FROM password_resets WHERE user_id=$1', [u.id]);
+    res.json({ token: sign(u), user: { id: u.id, email: u.email, name: u.name } });
+  }));
+
   const auth = wrap(async (req, res, next) => {
     const h = req.get('authorization') || '';
     try {
@@ -73,6 +124,23 @@ export function createApp() {
     } catch { res.status(401).json({ error: 'Please sign in again.' }); }
   });
 
+  /* ---------- account deletion (required by Google Play) ---------- */
+  // Deletes the user and, via ON DELETE CASCADE, their event and every guest record.
+  app.delete('/api/account', authLimiter, auth, wrap(async (req, res) => {
+    await q('DELETE FROM users WHERE id=$1', [req.uid]);
+    res.json({ ok: true });
+  }));
+
+  // Web form for people who no longer have the app (Play Console asks for this URL).
+  app.post('/api/account/delete-request', authLimiter, wrap(async (req, res) => {
+    const email = str(req.body.email, 200).toLowerCase();
+    const password = typeof req.body.password === 'string' ? req.body.password : '';
+    const u = (await q('SELECT * FROM users WHERE email=$1', [email])).rows[0];
+    if (!u || !(await bcrypt.compare(password, u.password_hash))) return res.status(401).json({ error: 'Wrong email or password.' });
+    await q('DELETE FROM users WHERE id=$1', [u.id]);
+    res.json({ ok: true });
+  }));
+
   /* ---------- event ---------- */
   app.get('/api/event', auth, (req, res) => res.json({ event: eventOut(req.event), mail: mailEnabled() }));
 
@@ -81,7 +149,7 @@ export function createApp() {
     const e = req.event;
     const r = await q(
       `UPDATE events SET bride=$1, groom=$2, date_text=$3, time_text=$4, venue=$5, invite_tpl=$6, reminder_tpl=$7,
-         auto_reminders=$8, updated_at=now() WHERE id=$9 RETURNING *`,
+         auto_reminders=$8, template=$9, extra_text=$10, updated_at=now() WHERE id=$11 RETURNING *`,
       [
         b.bride !== undefined ? str(b.bride, 80) : e.bride,
         b.groom !== undefined ? str(b.groom, 80) : e.groom,
@@ -91,6 +159,8 @@ export function createApp() {
         b.invite !== undefined ? str(b.invite, 2000) : e.invite_tpl,
         b.reminder !== undefined ? str(b.reminder, 2000) : e.reminder_tpl,
         b.autoReminders !== undefined ? !!b.autoReminders : e.auto_reminders,
+        TEMPLATES.includes(b.template) ? b.template : e.template,
+        b.extra !== undefined ? str(b.extra, 200) : e.extra_text,
         e.id,
       ]
     );
@@ -182,10 +252,10 @@ export function createApp() {
 
   /* ---------- public RSVP (what guests see) ---------- */
   app.get('/api/public/:token', rsvpLimiter, wrap(async (req, res) => {
-    const g = (await q('SELECT g.*, e.bride, e.groom, e.date_text, e.time_text, e.venue FROM guests g JOIN events e ON e.id=g.event_id WHERE g.token=$1', [req.params.token])).rows[0];
+    const g = (await q('SELECT g.*, e.bride, e.groom, e.date_text, e.time_text, e.venue, e.template, e.extra_text FROM guests g JOIN events e ON e.id=g.event_id WHERE g.token=$1', [req.params.token])).rows[0];
     if (!g) return res.status(404).json({ error: 'This invitation link is not valid.' });
     res.json({
-      event: { bride: g.bride, groom: g.groom, date: g.date_text, time: g.time_text, venue: g.venue },
+      event: { bride: g.bride, groom: g.groom, date: g.date_text, time: g.time_text, venue: g.venue, template: g.template, extra: g.extra_text },
       guest: { name: g.name, seats: g.seats, status: g.status, attending: g.attending, vegCount: g.veg_count, meal: g.meal, arrival: g.arrival },
     });
   }));
@@ -211,6 +281,8 @@ export function createApp() {
   }));
 
   app.use(express.static(path.join(__dirname, '../public'), { index: false }));
+  app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, '../public/privacy.html')));
+  app.get('/delete-account', (_req, res) => res.sendFile(path.join(__dirname, '../public/delete-account.html')));
   app.get('/r/:token', (_req, res) => res.sendFile(path.join(__dirname, '../public/rsvp.html')));
   app.get('/', (_req, res) => res.type('text').send('KnotCount server is running.'));
 

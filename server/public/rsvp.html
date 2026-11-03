@@ -16,6 +16,11 @@ main{max-width:460px;margin:0 auto;padding:28px 22px 60px}
 .label{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:500}
 .hero{background:var(--card);border:1px solid var(--ink);border-radius:22px;padding:8px;margin:18px 0 26px;box-shadow:0 6px 14px rgba(58,47,28,.07)}
 .hero>div{border:1px solid var(--line);border-radius:16px;padding:30px 20px;text-align:center}
+.extra{color:var(--soft);font-size:12.5px;margin-top:8px}
+.hero.royal{background:#7B1E3A;border-color:#7B1E3A}.hero.royal>div{border-color:rgba(231,196,120,.55)}
+.hero.royal .inv,.hero.royal .meta,.hero.royal .extra{color:#FBF1D8}.hero.royal .names,.hero.royal .meta.m{color:#E7C478}.hero.royal .rule{background:#E7C478}
+.hero.garden{background:#E4EBDD;border-color:var(--leaf)}.hero.garden>div{border-color:#B9C9B0}
+.hero.garden .names{color:var(--leaf)}.hero.garden .rule{background:var(--leaf)}
 .inv{font:italic 400 52px/1.05 Fraunces,Georgia,serif;margin:14px 0 0}
 .names{font-weight:800;font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--sindoor);margin-top:16px}
 .rule{width:28px;height:1.5px;background:var(--ink);margin:16px auto}
@@ -86,8 +91,8 @@ const plate = veg => `<svg width="112" height="63" viewBox="0 0 150 84" fill="no
 function render() {
   const d = S.data, e = d.event, g = d.guest, first = esc(g.name.split(' ')[0]);
   const hero = `<p class="label" style="text-align:center">${esc((e.bride[0]||'')+' & '+(e.groom[0]||''))}</p>
-  <div class="hero"><div><div class="inv">You’re<br>invited</div><div class="names">${esc(e.bride)} &amp; ${esc(e.groom)}</div><div class="rule"></div>
-  <div class="meta">${esc(e.date)}${e.time ? ' · ' + esc(e.time) : ''}</div><div class="meta m">${esc(e.venue)}</div></div></div>`;
+  <div class="hero ${esc(e.template || 'classic')}"><div><div class="inv">You’re<br>invited</div><div class="names">${esc(e.bride)} &amp; ${esc(e.groom)}</div><div class="rule"></div>
+  <div class="meta">${esc(e.date)}${e.time ? ' · ' + esc(e.time) : ''}</div><div class="meta m">${esc(e.venue)}</div>${e.extra ? `<div class="extra">${esc(e.extra)}</div>` : ''}</div></div>`;
   if (S.done) {
     app.innerHTML = hero + `<div class="card done"><div class="tick">✓</div><p class="label" style="margin-top:16px;color:var(--ink);font-weight:800">Thank you, ${first}</p>
     <p style="color:var(--soft);margin:8px 0 0">${S.yes ? `We’ve noted ${S.veg + S.nonveg} of you coming${S.mins ? ' around ' + fmt(S.mins) : ''}. See you there!` : 'We’ll miss you. Thank you for letting us know.'}</p>

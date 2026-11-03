@@ -148,7 +148,7 @@ export default function Guests({ go }) {
           </View>
         )}
       </ScrollView>
-      <GuestSheet visible={sheet.open} guest={sheet.guest} onClose={() => setSheet({ open: false, guest: null })} onImport={() => setImp(true)} />
+      <GuestSheet visible={sheet.open} guest={sheet.guest} onClose={() => setSheet({ open: false, guest: null })} onImport={() => setTimeout(() => setImp(true), 350)} />
       <GuestTotals visible={totals} onClose={() => setTotals(false)} />
       <ImportSheet visible={imp} onClose={() => setImp(false)} />
     </View>

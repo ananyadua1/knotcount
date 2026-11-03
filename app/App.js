@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image, Alert, Linking } from 'react-native';
+import { PRIVACY_URL } from './src/api';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -24,12 +25,24 @@ const TABS = [
 function Shell() {
   const [tab, setTab] = useState('guests');
   const ins = useSafeAreaInsets();
-  const { booting, authed, logout, error, loaded } = useStore();
+  const { booting, authed, logout, deleteAccount, error, loaded } = useStore();
   const idx = TABS.findIndex((t) => t.k === tab);
   if (booting) return <View style={{ flex: 1, backgroundColor: C.paper }} />;
   if (!authed) return <View style={{ flex: 1, backgroundColor: C.paper, paddingTop: ins.top }}><Auth /></View>;
   const Screen = { guests: Guests, invite: Invite, updates: Updates }[tab];
-  const signOut = () => Alert.alert('Sign out?', 'Your guest list stays safe on the server.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out', onPress: logout }]);
+  const confirmDelete = () => Alert.alert(
+    'Delete account?',
+    'This permanently deletes your account, wedding details, guest list and all replies. It cannot be undone.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete forever', style: 'destructive', onPress: () => deleteAccount().catch((e) => Alert.alert('Could not delete', e.message)) },
+    ]
+  );
+  const signOut = () => Alert.alert('Account', 'Your guest list stays safe on the server when you sign out.', [
+    { text: 'Privacy policy', onPress: () => Linking.openURL(PRIVACY_URL()) },
+    { text: 'Delete account', style: 'destructive', onPress: confirmDelete },
+    { text: 'Sign out', onPress: logout },
+  ], { cancelable: true });
 
   return (
     <View style={{ flex: 1, backgroundColor: C.paper, paddingTop: ins.top }}>
