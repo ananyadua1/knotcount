@@ -68,11 +68,11 @@ export function Chip({ title, active, onPress, tone }) {
   );
 }
 
-export function Field({ label, style, ...p }) {
+export function Field({ label, style, lines, ...p }) {
   return (
     <View style={[{ marginBottom: 16 }, style]}>
-      <Label style={{ marginBottom: 6 }}>{label}</Label>
-      <TextInput placeholderTextColor={C.muted} {...p} style={[s.input, p.multiline && { height: 110, textAlignVertical: 'top', paddingTop: 12 }]} />
+      {!!label && <Label style={{ marginBottom: 6 }}>{label}</Label>}
+      <TextInput placeholderTextColor={C.muted} {...p} style={[s.input, p.multiline && { height: lines ? lines * 21 + 26 : 110, textAlignVertical: 'top', paddingTop: 12 }]} />
     </View>
   );
 }

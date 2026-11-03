@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet, Share, Pressable } from 'react-nati
 import { Feather } from '@expo/vector-icons';
 import { C, F, shadow } from '../theme';
 import { Label, Heading, Btn, Field, IconBtn, Card, tap } from '../components/ui';
-import { useStore, couple, fill } from '../store';
+import { useStore, couple, inviteText, compose } from '../store';
 import { sendChat } from '../send';
 
 export default function Invite() {
@@ -14,7 +14,7 @@ export default function Invite() {
   const sent = guests.filter((g) => g.invited);
 
   const send = async (g) => {
-    const ok = await sendChat(g, fill(wedding.invite, g, wedding));
+    const ok = await sendChat(g, compose(inviteText(wedding), g, wedding));
     if (ok) updateGuest(g.id, { invited: true });
   };
 
@@ -49,9 +49,16 @@ export default function Invite() {
             <Field style={{ flex: 1 }} label="Time" value={wedding.time} onChangeText={set('time')} />
           </View>
           <Field label="Venue" value={wedding.venue} onChangeText={set('venue')} />
-          <Field label="Message  ·  {name} {couple} {date} {time} {venue} {link}" value={wedding.invite} onChangeText={set('invite')} multiline />
         </View>
       )}
+
+      <Label style={{ marginTop: 28 }}>Your message</Label>
+      <Text style={styles.hint}>Paste your own text or edit this one. Each guest’s personal reply link is added at the end for you.</Text>
+      <Field label="" value={inviteText(wedding)} onChangeText={set('invite')} multiline lines={9} style={{ marginTop: 8 }} />
+      <Label style={{ fontSize: 9.5 }}>What a guest receives</Label>
+      <View style={styles.preview}>
+        <Text style={styles.previewT}>{compose(inviteText(wedding), { name: 'Guest', link: guests[0]?.link || 'their personal reply link' }, wedding)}</Text>
+      </View>
 
       <View style={styles.sectionHead}>
         <Label>To send · {todo.length}</Label>
@@ -94,6 +101,9 @@ const styles = StyleSheet.create({
   meta: { fontFamily: F.med, fontSize: 13, color: C.ink, marginTop: 3, textAlign: 'center' },
   editRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: C.line },
   sectionHead: { marginTop: 28, marginBottom: 6 },
+  hint: { fontFamily: F.reg, fontSize: 12.5, color: C.muted, lineHeight: 18, marginTop: 6 },
+  preview: { marginTop: 8, borderRadius: 14, backgroundColor: C.wash, padding: 14 },
+  previewT: { fontFamily: F.reg, fontSize: 13.5, lineHeight: 20, color: C.ink },
   none: { fontFamily: F.reg, fontSize: 14, color: C.muted, marginTop: 8, lineHeight: 20 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.line },
   gname: { fontFamily: F.semi, fontSize: 15, color: C.ink },

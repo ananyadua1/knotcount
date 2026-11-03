@@ -21,20 +21,23 @@ export const eventOut = (e) => ({
   invite: e.invite_tpl, reminder: e.reminder_tpl, autoReminders: e.auto_reminders,
 });
 
-export const defaultEvent = {
-  bride: '', groom: '', date_text: '', time_text: '7:00 PM', venue: '',
-  invite_tpl:
-    'Namaste {name}! {couple} are getting married and would love to have you with them.\n\n{date}, {time}\n{venue}\n\nPlease tell us if you can make it, it takes 20 seconds:\n{link}',
-  reminder_tpl:
-    'Namaste {name}! A gentle reminder to confirm your attendance at {couple}’s wedding on {date}. You can reply here:\n{link}',
-};
+// The host's own invite and reminder texts are plain text. Blank means "use the standard wording"
+// (the app shows the same wording for blank), and the guest's link is added at the end.
+export const defaultEvent = { bride: '', groom: '', date_text: '', time_text: '7:00 PM', venue: '', invite_tpl: '', reminder_tpl: '' };
 
-export const fillTpl = (tpl, g, e, link) =>
-  tpl
+const standardReminder = 'Namaste! A gentle reminder to confirm your attendance at {couple}’s wedding{on_date}. You can reply here:';
+
+export const fillTpl = (tpl, g, e, link) => {
+  let text = tpl && tpl.trim() ? tpl : standardReminder.replace('{on_date}', e.date_text ? ` on ${e.date_text}` : '');
+  if (!text.includes('{link}')) text = `${text.trimEnd()}
+
+{link}`;
+  return text
     .replaceAll('{name}', (g.name || '').split(' ')[0] || 'there')
     .replaceAll('{couple}', `${e.bride} & ${e.groom}`)
     .replaceAll('{date}', e.date_text).replaceAll('{time}', e.time_text)
     .replaceAll('{venue}', e.venue).replaceAll('{link}', link);
+};
 
 // How many of `count` people eat vegetarian. Reads vegCount / veg, or the older single `meal` choice.
 // With neither, keeps `fallback` (clamped), or null meaning "not chosen".

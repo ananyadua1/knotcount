@@ -4,7 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { C, F, shadow } from '../theme';
 import { Label, Heading, Stat, Btn, Card, Field, tap } from '../components/ui';
 import { Person } from '../components/art';
-import { useStore, fill } from '../store';
+import { useStore, reminderText, compose } from '../store';
 import { sendChat } from '../send';
 import { api } from '../api';
 import Rsvp from './Rsvp';
@@ -34,7 +34,7 @@ export default function Updates() {
       : { status, attending: 0 });
 
   const remind = async (g) => {
-    await sendChat(g, fill(wedding.reminder, g, wedding));
+    await sendChat(g, compose(reminderText(wedding), g, wedding));
     updateGuest(g.id, { reminded: Date.now() });
   };
 
@@ -64,7 +64,7 @@ export default function Updates() {
       </Card>
       {edit && (
         <View style={{ marginTop: 14 }}>
-          <Field label="Message  ·  {name} {couple} {date}" value={wedding.reminder} multiline onChangeText={(v) => setWedding((w) => ({ ...w, reminder: v }))} />
+          <Field label="Reminder message (the guest’s link is added at the end)" value={reminderText(wedding)} multiline lines={5} onChangeText={(v) => setWedding((w) => ({ ...w, reminder: v }))} />
         </View>
       )}
       {mail ? (

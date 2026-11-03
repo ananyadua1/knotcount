@@ -114,6 +114,21 @@ export function StoreProvider({ children }) {
   return <Ctx.Provider value={api2}>{children}</Ctx.Provider>;
 }
 
+// The invite and reminder are plain text the host pastes or types. Until they do, a ready message is built from the wedding details.
+const oldDefault = (s) => !s || !s.trim() || s.includes('{couple} are getting married') || s.includes('confirm your attendance at {couple}');
+export const inviteText = (w) => {
+  if (!oldDefault(w.invite)) return w.invite;
+  const when = [w.date, w.time].filter(Boolean).join(', ');
+  const lines = [`Namaste! ${couple(w)} are getting married and would love to have you with them.`, '', when, w.venue].filter((l, i) => i < 2 || l);
+  return lines.join('\n') + '\n\nPlease tell us if you can make it, it takes 20 seconds:';
+};
+export const reminderText = (w) =>
+  oldDefault(w.reminder)
+    ? `Namaste! A gentle reminder to confirm your attendance at ${couple(w)}’s wedding${w.date ? ` on ${w.date}` : ''}. You can reply here:`
+    : w.reminder;
+// the guest's personal reply link goes at the end unless the text already places it
+export const compose = (text, g, w) => (text.includes('{link}') ? fill(text, g, w) : `${fill(text, g, w).trimEnd()}\n\n${g.link || ''}`);
+
 export const couple = (w) => `${w.bride || 'Bride'} & ${w.groom || 'Groom'}`;
 export const fill = (tpl, g, w) =>
   (tpl || '')
