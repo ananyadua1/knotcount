@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { api, loadSession, setToken, setEventId, getEventId, setAuthFailHandler } from './api';
+import { api, wakeServer, loadSession, setToken, setEventId, getEventId, setAuthFailHandler } from './api';
 
 const blankWedding = {
   bride: '', groom: '', date: '', time: '7:00 PM', venue: '', invite: '', reminder: '', autoReminders: false,
@@ -20,121 +20,144 @@ export function StoreProvider({ children }) {
   const [me, setMe] = useState(null);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('saved');
   const saveTimer = useRef(null);
   const pendingWedding = useRef(null);
-  const editing = useRef(0);
+  const weddingRef = useRef(blankWedding);
+  const generation = useRef(0);
+  const refreshSequence = useRef(0);
+  const mutation = useRef(0);
+  const saving = useRef(null);
+  const switching = useRef(false);
+
+  const clearSession = useCallback(async () => {
+    generation.current++; clearTimeout(saveTimer.current);
+    pendingWedding.current = null; weddingRef.current = blankWedding;
+    await setToken(null); await setEventId(null);
+    setAuthed(false); setGuests([]); setEvents([]); setMe(null); setWeddingState(blankWedding); setLoaded(false); setError(''); setSaveStatus('saved');
+  }, []);
 
   const refresh = useCallback(async function refresh() {
+    const epoch = generation.current, sequence = ++refreshSequence.current, changed = mutation.current;
+    const eventId = getEventId();
     try {
-      const [g, e, list] = await Promise.all([api('GET', '/api/guests'), api('GET', '/api/event'), api('GET', '/api/events')]);
-      if (!editing.current) { setGuests(g.guests); }
-      setWeddingState((w) => (saveTimer.current ? w : { ...blankWedding, ...e.event }));
-      setEvents(list.events);
-      setMail(!!e.mail); setError(''); setLoaded(true);
+      const [g, e, list] = await Promise.all([api('GET', '/api/guests', null, { eventId }), api('GET', '/api/event', null, { eventId }), api('GET', '/api/events', null, { eventId })]);
+      if (epoch !== generation.current || sequence !== refreshSequence.current || changed !== mutation.current) return;
+      setGuests(g.guests);
+      if (!pendingWedding.current && !saving.current) { weddingRef.current = { ...blankWedding, ...e.event }; setWeddingState(weddingRef.current); }
+      setEvents(list.events); setMail(!!e.mail); setError(''); setLoaded(true);
     } catch (e) {
-      if (e.status === 404) { await setEventId(null); setGuests([]); setLoaded(false); return refresh(); } // that wedding was removed
-      setError(e.offline ? 'Offline. Showing last known list.' : e.message);
+      if (epoch !== generation.current || sequence !== refreshSequence.current) return;
+      if (e.status === 404 && eventId && !pendingWedding.current) { generation.current++; await setEventId(null); setGuests([]); setLoaded(false); return refresh(); }
+      setError(e.offline ? 'Connection lost. Your list may be out of date. Pull down to retry.' : e.message);
     }
   }, []);
 
-  useEffect(() => {
-    setAuthFailHandler(() => { setToken(null); setAuthed(false); setGuests([]); setEvents([]); setMe(null); });
-    (async () => { const has = await loadSession(); setAuthed(has); setBooting(false); })();
+  const flushWedding = useCallback(async () => {
+    clearTimeout(saveTimer.current);
+    if (saving.current) await saving.current;
+    if (!pendingWedding.current) return;
+    const draft = pendingWedding.current, epoch = generation.current;
+    setSaveStatus('saving');
+    const request = api('PUT', '/api/event', draft.value, { eventId: draft.id });
+    saving.current = request;
+    try {
+      const result = await request;
+      if (epoch !== generation.current) return;
+      if (pendingWedding.current === draft) {
+        pendingWedding.current = null; weddingRef.current = { ...blankWedding, ...result.event };
+        setWeddingState(weddingRef.current); setSaveStatus('saved');
+      }
+    } catch (e) { if (epoch === generation.current) setSaveStatus('error'); throw e; }
+    finally { if (saving.current === request) saving.current = null; }
+    if (pendingWedding.current && epoch === generation.current) return flushWedding();
   }, []);
 
-  // live updates: poll while signed in and the app is in the foreground
+  useEffect(() => {
+    setAuthFailHandler(() => { clearSession().catch(() => setError('Could not clear your session. Please restart the app.')); });
+    wakeServer();
+    (async () => {
+      try { setAuthed(await loadSession()); } catch { setError('Could not restore your session. Please sign in again.'); }
+      finally { setBooting(false); }
+    })();
+    return () => { generation.current++; clearTimeout(saveTimer.current); setAuthFailHandler(() => {}); };
+  }, [clearSession]);
+
   useEffect(() => {
     if (!authed) return;
+    const epoch = generation.current;
     refresh();
-    api('GET', '/api/me').then((r) => setMe(r.user)).catch(() => {});
-    const t = setInterval(refresh, 8000);
-    const sub = AppState.addEventListener('change', (s) => s === 'active' && refresh());
+    api('GET', '/api/me').then(r => { if (epoch === generation.current) setMe(r.user); }).catch(() => {});
+    const t = setInterval(() => { if (AppState.currentState === 'active' || !AppState.currentState) refresh(); }, 15000);
+    const sub = AppState.addEventListener('change', s => {
+      if (s === 'active') refresh();
+      else flushWedding().catch(() => {});
+    });
     return () => { clearInterval(t); sub.remove(); };
-  }, [authed, refresh]);
+  }, [authed, refresh, flushWedding]);
 
   const api2 = useMemo(() => {
-    const login = async (email, password) => {
-      const r = await api('POST', '/api/auth/login', { email, password });
-      await setToken(r.token); setLoaded(false); setAuthed(true); return r.user;
+    const acceptSession = async r => {
+      generation.current++; await setEventId(null); await setToken(r.token);
+      setMe(r.user); setLoaded(false); setAuthed(true); return r.user;
     };
+    const login = async (email, password) => acceptSession(await api('POST', '/api/auth/login', { email, password }));
     const register = async (name, email, password) => {
       const r = await api('POST', '/api/auth/register', { name, email, password });
-      if (r.needsVerify) return r; // a code was emailed; the account opens once it is entered
-      await setToken(r.token); setLoaded(false); setAuthed(true); return r.user;
+      return r.needsVerify ? r : acceptSession(r);
     };
-    const verifyEmail = async (email, code) => {
-      const r = await api('POST', '/api/auth/verify', { email, code });
-      await setToken(r.token); setLoaded(false); setAuthed(true); return r.user;
-    };
-    const resendVerification = (email) => api('POST', '/api/auth/resend', { email });
-    const forgotPassword = (email) => api('POST', '/api/auth/forgot', { email });
-    const resetPassword = async (email, code, password) => {
-      const r = await api('POST', '/api/auth/reset', { email, code, password });
-      await setToken(r.token); setLoaded(false); setAuthed(true); return r.user;
-    };
+    const verifyEmail = async (email, code) => acceptSession(await api('POST', '/api/auth/verify', { email, code }));
+    const resendVerification = email => api('POST', '/api/auth/resend', { email });
+    const forgotPassword = email => api('POST', '/api/auth/forgot', { email });
+    const resetPassword = async (email, code, password) => acceptSession(await api('POST', '/api/auth/reset', { email, code, password }));
     const logout = async () => {
-      await setToken(null); await setEventId(null);
-      setAuthed(false); setGuests([]); setEvents([]); setMe(null); setWeddingState(blankWedding); setLoaded(false);
+      await flushWedding();
+      await api('POST', '/api/auth/logout');
+      await clearSession();
     };
-
-    // an account can hold several weddings; everything on screen belongs to the one selected
-    const switchEvent = async (id) => {
-      if (id === getEventId()) return;
-      if (saveTimer.current) { // save pending edits to the wedding being left, before the header changes
-        clearTimeout(saveTimer.current); saveTimer.current = null;
-        try { await api('PUT', '/api/event', pendingWedding.current); } catch (e) { setError(e.message); }
-      }
-      await setEventId(id);
-      setGuests([]); setWeddingState(blankWedding); setLoaded(false);
-      await refresh();
+    const switchEvent = async id => {
+      if (id === getEventId() || switching.current) return;
+      switching.current = true;
+      try {
+        await flushWedding(); generation.current++; await setEventId(id);
+        weddingRef.current = blankWedding; setGuests([]); setWeddingState(blankWedding); setLoaded(false);
+        await refresh();
+      } finally { switching.current = false; }
     };
     const addEvent = async (bride = '', groom = '') => {
+      await flushWedding();
       const r = await api('POST', '/api/events', { bride, groom });
-      await switchEvent(r.event.id);
-      return r.event;
+      await switchEvent(r.event.id); return r.event;
     };
-    const removeEvent = async (id) => {
+    const removeEvent = async id => {
+      await flushWedding();
       await api('DELETE', `/api/events/${id}`);
-      const rest = events.filter((e) => e.id !== id);
-      setEvents(rest);
-      if (id === (getEventId() ?? events[0]?.id)) { await setEventId(null); setGuests([]); setWeddingState(blankWedding); setLoaded(false); }
+      generation.current++;
+      if (id === (getEventId() ?? events[0]?.id)) { await setEventId(null); weddingRef.current = blankWedding; setGuests([]); setWeddingState(blankWedding); setLoaded(false); }
       await refresh();
     };
-
-    const deleteAccount = async () => { await api('DELETE', '/api/account'); await logout(); };
-
-    const addGuests = async (list) => {
-      const r = await api('POST', '/api/guests', { guests: list });
-      setGuests((g) => [...g, ...r.guests]);
-    };
-    const updateGuest = async (id, patch) => {
-      editing.current++;
-      setGuests((g) => g.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    const deleteAccount = async () => { await api('DELETE', '/api/account'); await clearSession(); };
+    const mutateGuest = async (method, path, body, apply) => {
+      const epoch = generation.current, eventId = weddingRef.current.id;
+      if (!eventId) throw new Error('Wait for your wedding to finish loading.');
+      mutation.current++;
       try {
-        const body = { ...patch };
-        if (body.reminded) body.reminded = true;
-        const r = await api('PATCH', `/api/guests/${id}`, body);
-        setGuests((g) => g.map((x) => (x.id === id ? r.guest : x)));
-      } catch (e) { setError(e.message); refresh(); }
-      finally { editing.current--; }
+        const result = await api(method, path, body, { eventId });
+        if (epoch === generation.current) { setGuests(g => apply(g, result)); setError(''); }
+        return result;
+      } finally { mutation.current++; }
     };
-    const removeGuest = async (id) => {
-      setGuests((g) => g.filter((x) => x.id !== id));
-      try { await api('DELETE', `/api/guests/${id}`); } catch (e) { setError(e.message); refresh(); }
-    };
-    const respond = (id, r) => updateGuest(id, { ...r, respondedAt: Date.now() });
-
-    const setWedding = (fn) => {
-      setWeddingState((prev) => {
-        const next = typeof fn === 'function' ? fn(prev) : fn;
-        clearTimeout(saveTimer.current);
-        pendingWedding.current = next;
-        saveTimer.current = setTimeout(async () => {
-          try { await api('PUT', '/api/event', next); } catch (e) { setError(e.message); }
-          saveTimer.current = null;
-        }, 700);
-        return next;
-      });
+    const addGuests = list => mutateGuest('POST', '/api/guests', { guests: list }, (g, r) => [...g, ...r.guests]);
+    const updateGuest = (id, patch) => mutateGuest('PATCH', `/api/guests/${id}`, { ...patch, ...(patch.reminded ? { reminded: true } : {}) }, (g, r) => g.map(x => x.id === id ? r.guest : x));
+    const removeGuest = id => mutateGuest('DELETE', `/api/guests/${id}`, null, g => g.filter(x => x.id !== id));
+    const respond = (id, r) => updateGuest(id, r);
+    const setWedding = fn => {
+      if (!weddingRef.current.id || switching.current) return;
+      const next = typeof fn === 'function' ? fn(weddingRef.current) : fn;
+      weddingRef.current = next; setWeddingState(next);
+      pendingWedding.current = { id: next.id, value: next }; setSaveStatus('pending');
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => flushWedding().catch(() => {}), 700);
     };
 
     const sum = (arr, f) => arr.reduce((a, x) => a + f(x), 0);
@@ -157,10 +180,10 @@ export function StoreProvider({ children }) {
       sent: guests.filter((x) => x.invited).length,
       households: guests.length,
     };
-    return { booting, authed, loaded, error, mail, guests, wedding, stats, refresh, login, register, verifyEmail, resendVerification, forgotPassword, resetPassword, logout, deleteAccount,
+    return { saveStatus, retrySave: flushWedding, booting, authed, loaded, error, mail, guests, wedding, stats, refresh, login, register, verifyEmail, resendVerification, forgotPassword, resetPassword, logout, deleteAccount,
       events, me, switchEvent, addEvent, removeEvent,
       addGuests, updateGuest, removeGuest, respond, setWedding };
-  }, [booting, authed, loaded, error, mail, guests, wedding, events, me, refresh]);
+  }, [saveStatus, booting, authed, loaded, error, mail, guests, wedding, events, me, refresh, flushWedding, clearSession]);
 
   return <Ctx.Provider value={api2}>{children}</Ctx.Provider>;
 }

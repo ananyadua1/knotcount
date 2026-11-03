@@ -3,11 +3,11 @@ export const C = {
   card: '#FBF8F2',
   ink: '#1A1714',
   soft: '#4B453D',
-  muted: '#8A8277',
+  muted: '#6E665D',
   line: '#DCD4C6',
   wash: '#EAE3D5',
   sindoor: '#B8342B',
-  haldi: '#D99A1E',
+  haldi: '#95620B',
   leaf: '#3E6A4D',
 };
 export const F = {

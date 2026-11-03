@@ -12,9 +12,10 @@ You need a GitHub account. Total time: about 20 minutes.
 3. When asked, set:
    - `DATABASE_URL` = the Neon connection string
    - `PUBLIC_URL` = the address Render gives you, e.g. `https://knotcount-server.onrender.com` (you can set this after the first deploy and redeploy)
+   - `MAIL_WEBHOOK_URL` and `MAIL_WEBHOOK_SECRET` = from section 4 below. The server deliberately refuses to start without working email, because sign-up confirmation and password reset depend on it. Set up section 4 first, or the first deploy will fail with a message saying so.
 4. Open `https://YOUR-SERVER/health`. It should answer `{"ok":true}`. Tables are created automatically on first start.
 
-Note: the free Render plan sleeps after 15 minutes without traffic, so the first request after a quiet spell takes ~30 seconds. A guest opening their link may wait that long once. Upgrade the plan before the invitations go out, or use a free uptime pinger on `/health`.
+Note: the free Render plan sleeps after 15 minutes without traffic, so the first request after a quiet spell takes up to a minute. The app and the guest page both wait for it (the guest page tells the guest their invitation is opening). To avoid even that, add a free uptime monitor that pings `/health` every 5 minutes (LAUNCH.md section 4); that keeps the server awake. The server must also be awake for reminder emails to go out.
 
 ## 3. Android app
 1. In `app/`, create `.env` containing `EXPO_PUBLIC_API_URL=https://YOUR-SERVER`.

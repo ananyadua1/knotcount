@@ -11,6 +11,7 @@ export default function MealSplit({ veg, nonveg, max, onChange }) {
   const cards = [['veg', 'Vegetarian', veg], ['nonveg', 'Non-veg', nonveg]];
   const bump = (k, d) => {
     const next = { veg, nonveg, [k]: (k === 'veg' ? veg : nonveg) + d };
+    if (d > 0 && total >= max) next[k === 'veg' ? 'nonveg' : 'veg']--;
     onChange(next.veg, next.nonveg);
   };
   return (
@@ -22,9 +23,9 @@ export default function MealSplit({ veg, nonveg, max, onChange }) {
             <Text style={st.title}>{title}</Text>
             {onChange ? (
               <View style={st.step}>
-                <IconBtn name="minus" size={34} disabled={n <= 0 || total <= 1} onPress={() => bump(k, -1)} />
+                <IconBtn name="minus" size={34} disabled={n <= 0 || total <= 1} accessibilityLabel={`Decrease ${title.toLowerCase()} guests`} onPress={() => bump(k, -1)} />
                 <Text style={st.num}>{n}</Text>
-                <IconBtn name="plus" size={34} solid disabled={total >= max} onPress={() => bump(k, 1)} />
+                <IconBtn name="plus" size={34} solid disabled={n >= max} accessibilityLabel={`Increase ${title.toLowerCase()} guests`} onPress={() => bump(k, 1)} />
               </View>
             ) : (
               <Text style={[st.num, st.numBig]}>{n}</Text>
@@ -32,7 +33,7 @@ export default function MealSplit({ veg, nonveg, max, onChange }) {
           </View>
         ))}
       </View>
-      {!!onChange && <Label style={st.hint}>{total} of {max} seat{max > 1 ? 's' : ''} used</Label>}
+      {!!onChange && <Label style={st.hint}>{total} of {max} seats · At capacity, + changes a meal</Label>}
     </View>
   );
 }

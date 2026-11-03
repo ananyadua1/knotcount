@@ -18,7 +18,9 @@
         {
           "contactsPermission": "KnotCount reads your contacts only when you choose to import guests."
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-splash-screen"
     ],
     "android": {
       "package": "com.knotcount.app",
@@ -34,7 +36,7 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.SYSTEM_ALERT_WINDOW"
       ],
-      "versionCode": 1
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png",

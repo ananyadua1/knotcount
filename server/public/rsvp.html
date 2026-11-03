@@ -120,37 +120,62 @@ function render() {
    <div class="sec"><span class="label">How many are coming</span>
     <div class="count" style="justify-content:center"><div class="big">${total}</div></div>
     <p style="text-align:center;color:var(--muted);font-size:12.5px;margin:2px 0 0">Your invitation is for up to ${g.seats} ${g.seats > 1 ? 'guests' : 'guest'}</p></div>
-   <div class="sec"><span class="label">Who eats what</span><div class="meals">
-    ${[['veg', 'Vegetarian'], ['nonveg', 'Non-veg']].map(([k, t]) => `<div class="meal">${plate(k === 'veg')}<b>${t}</b><div class="mstep"><button class="round" data-m="${k}" data-d="-1" ${(S[k] === 0 || total <= 1) ? 'disabled' : ''}>−</button><span class="mnum">${S[k]}</span><button class="round s" data-m="${k}" data-d="1" ${total >= g.seats ? 'disabled' : ''}>+</button></div></div>`).join('')}</div></div>
+   <div class="sec"><span class="label">Who eats what</span><p class="hi">At full capacity, + moves one guest to that meal.</p><div class="meals">
+    ${[['veg', 'Vegetarian'], ['nonveg', 'Non-veg']].map(([k, t]) => `<div class="meal">${plate(k === 'veg')}<b>${t}</b><div class="mstep"><button class="round" aria-label="Fewer ${t} guests" data-m="${k}" data-d="-1" ${(S[k] === 0 || total <= 1) ? 'disabled' : ''}>−</button><span class="mnum">${S[k]}</span><button class="round s" aria-label="More ${t} guests" data-m="${k}" data-d="1" ${S[k] >= g.seats ? 'disabled' : ''}>+</button></div></div>`).join('')}</div></div>
    <div class="sec"><span class="label">About when will you arrive?</span>${clock(S.mins)}<div class="time">${fmt(S.mins)}</div>
     <div class="step"><button class="round" data-t="-30">−</button><span class="label">± 30 min</span><button class="round s" data-t="30">+</button></div></div>
   </div>
-  <button class="go" id="go" ${S.busy ? 'disabled' : ''}>${S.yes ? `Send my reply · ${total} ${total > 1 ? 'guests' : 'guest'}` : 'Send my reply'}</button><div class="err" id="err"></div>`;
-  app.querySelectorAll('[data-yn]').forEach(b => b.onclick = () => { S.yes = b.dataset.yn === '1'; render(); });
+  <button class="go" id="go" ${S.busy ? 'disabled' : ''}>${S.yes ? `Send my reply · ${total} ${total > 1 ? 'guests' : 'guest'}` : 'Send my reply'}</button><div class="err" role="alert" id="err"></div>`;
+  app.querySelectorAll('[data-yn]').forEach(b => b.onclick = () => { if (S.busy) return; S.yes = b.dataset.yn === '1'; render(); });
   app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
     const k = b.dataset.m, n = S[k] + +b.dataset.d, t = total + +b.dataset.d;
-    if (n < 0 || t < 1 || t > g.seats) return;
+    if (S.busy || n < 0 || t < 1 || n > g.seats) return;
+    if (t > g.seats) S[k === 'veg' ? 'nonveg' : 'veg']--;
     S[k] = n; render();
   });
-  app.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.mins = (S.mins + +b.dataset.t + 1440) % 1440; render(); });
+  app.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { if (S.busy) return; S.mins = (S.mins + +b.dataset.t + 1440) % 1440; render(); });
   document.getElementById('go').onclick = submit;
 }
 
 async function submit() {
+  if (S.busy) return;
   S.busy = true; render();
   try {
-    const r = await fetch(`/api/public/${token}/rsvp`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const r = await fetch(`/api/public/${token}/rsvp`, { method: 'POST', signal: AbortSignal.timeout(60000), headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ attending: S.yes, count: S.veg + S.nonveg, veg: S.veg, arrival: S.mins }) });
     const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Something went wrong');
+    S.data.guest = { ...S.data.guest, ...j.guest };
+    S.yes = j.guest.status === 'confirmed'; S.veg = j.guest.vegCount ?? 0; S.nonveg = j.guest.attending - S.veg;
     S.done = true; S.busy = false; render();
   } catch (e) { S.busy = false; render(); document.getElementById('err').textContent = e.message + '. Please try again.'; }
 }
 
+// The server can be asleep when the first guest of the day opens a link; waking it takes up to about a minute.
+// Keep trying, and tell the guest what is happening instead of leaving a blank page.
+async function loadInvite() {
+  const started = Date.now();
+  const hint = setTimeout(() => {
+    app.innerHTML = '<p class="label" style="text-align:center;margin-top:80px">Opening your invitation…</p><p style="text-align:center;color:var(--soft);margin:12px 20px 0">This can take up to a minute the first time. Please keep this page open.</p>';
+  }, 4000);
+  try {
+    for (;;) {
+      try {
+        const r = await fetch(`/api/public/${token}`, { signal: AbortSignal.timeout(20000) });
+        const j = await r.json();
+        if (!r.ok) throw Object.assign(new Error(j.error), { final: true }); // a real answer such as "link not valid": don't retry
+        return j;
+      } catch (e) {
+        if (e.final || Date.now() - started > 90000) throw e;
+        await new Promise((res) => setTimeout(res, 2000));
+      }
+    }
+  } finally { clearTimeout(hint); }
+}
+
 (async () => {
   try {
-    const r = await fetch(`/api/public/${token}`); const j = await r.json();
-    if (!r.ok) throw new Error(j.error);
-    S.data = j; const g = j.guest;
+    const j = await loadInvite(); const g = j.guest;
+    S.data = j;
     S.yes = g.status !== 'declined';
     const n = Math.min(g.attending || g.seats, g.seats);
     S.veg = g.vegCount != null ? Math.min(g.vegCount, n) : (g.meal === 'nonveg' ? 0 : n); S.nonveg = n - S.veg;
@@ -158,7 +183,8 @@ async function submit() {
     document.title = `You’re invited · ${j.event.bride} & ${j.event.groom}`;
     render();
   } catch (e) {
-    app.innerHTML = `<p class="label" style="text-align:center;margin-top:90px">${esc(e.message || 'This invitation link is not valid.')}</p>`;
+    const msg = e.final ? (e.message || 'This invitation link is not valid.') : 'We could not reach the server. Please check your internet connection and reload this page.';
+    app.innerHTML = `<p class="label" style="text-align:center;margin-top:90px">${esc(msg)}</p>`;
   }
 })();
 </script>

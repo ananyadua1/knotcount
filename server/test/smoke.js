@@ -17,7 +17,7 @@ const email = `t${Date.now()}@example.com`;
 let r = await call('POST', '/api/auth/register', { email, password: 'short' });
 assert.equal(r.status, 400);
 r = await call('POST', '/api/auth/register', { email, password: 'longenough1', name: 'Test' });
-assert.equal(r.status, 201); const T = r.json.token;
+assert.equal(r.status, 201); let T = r.json.token;
 r = await call('POST', '/api/auth/register', { email, password: 'longenough1' }); assert.equal(r.status, 409);
 r = await call('POST', '/api/auth/login', { email, password: 'wrong-pass' }); assert.equal(r.status, 401);
 r = await call('POST', '/api/auth/login', { email, password: 'longenough1' }); assert.equal(r.status, 200);
@@ -95,6 +95,8 @@ const code = /\b(\d{6})\b/.exec(mails[0].text)[1];
 r = await call('POST', '/api/auth/reset', { email, code: '000000' === code ? '111111' : '000000', password: 'brandnew123' }); assert.equal(r.status, 400);
 r = await call('POST', '/api/auth/reset', { email, code, password: 'short' }); assert.equal(r.status, 400);
 r = await call('POST', '/api/auth/reset', { email, code, password: 'brandnew123' }); assert.equal(r.status, 200); assert.ok(r.json.token);
+const oldTokenCheck = await call('GET', '/api/guests', null, T); assert.equal(oldTokenCheck.status, 401);
+T = r.json.token;
 r = await call('POST', '/api/auth/login', { email, password: 'longenough1' }); assert.equal(r.status, 401); // old password gone
 r = await call('POST', '/api/auth/login', { email, password: 'brandnew123' }); assert.equal(r.status, 200);
 r = await call('POST', '/api/auth/reset', { email, code, password: 'another12345' }); assert.equal(r.status, 400); // a code works once
@@ -108,12 +110,12 @@ assert.equal(mails.length, before + 1); assert.equal(mails[before].to, vemail);
 const vcode = /\b(\d{6})\b/.exec(mails[before].text)[1];
 r = await call('POST', '/api/auth/login', { email: vemail, password: 'longenough1' });
 assert.equal(r.status, 403); assert.equal(r.json.needsVerify, true); assert.equal(mails.length, before + 1); // a code just went out, so no second email yet
-r = await call('POST', '/api/auth/register', { email: vemail, password: 'anotherpass1' }); assert.equal(r.status, 201); // unconfirmed sign-up can be redone
+r = await call('POST', '/api/auth/register', { email: vemail, password: 'attacker-password' }); assert.equal(r.status, 409); // pending credentials cannot be replaced
 r = await call('POST', '/api/auth/verify', { email: vemail, code: vcode === '000000' ? '111111' : '000000' }); assert.equal(r.status, 400);
 r = await call('POST', '/api/auth/verify', { email: vemail, code: vcode }); assert.equal(r.status, 200); assert.ok(r.json.token);
-r = await call('POST', '/api/auth/login', { email: vemail, password: 'anotherpass1' }); assert.equal(r.status, 200);
+r = await call('POST', '/api/auth/login', { email: vemail, password: 'longenough1' }); assert.equal(r.status, 200);
 r = await call('POST', '/api/auth/verify', { email: vemail, code: vcode }); assert.equal(r.status, 400); // a code works once
-const VT = r.status === 400 ? (await call('POST', '/api/auth/login', { email: vemail, password: 'anotherpass1' })).json.token : null;
+const VT = r.status === 400 ? (await call('POST', '/api/auth/login', { email: vemail, password: 'longenough1' })).json.token : null;
 
 // one account, several weddings
 r = await call('GET', '/api/events', null, VT); assert.equal(r.json.events.length, 1);

@@ -4,12 +4,12 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { C, F, shadow } from '../theme';
 
-export const tap = () => { try { Haptics.selectionAsync(); } catch (e) {} };
+export const tap = () => { try { Haptics.selectionAsync().catch(() => {}); } catch (e) {} };
 
 export const Label = ({ children, style }) => <Text style={[s.label, style]}>{children}</Text>;
 
 export const Heading = ({ children, size = 34, style }) => (
-  <Text style={[s.heading, { fontSize: size, lineHeight: size * 1.04 }, style]}>{children}</Text>
+  <Text style={[s.heading, { fontSize: size, lineHeight: size * 1.15 }, style]}>{children}</Text>
 );
 
 export const Card = ({ children, style, active, soft }) => (
@@ -20,6 +20,7 @@ export function Btn({ title, onPress, kind = 'solid', icon, style, disabled }) {
   const solid = kind === 'solid';
   return (
     <Pressable
+      accessibilityRole="button" accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={() => { tap(); onPress && onPress(); }}
       style={({ pressed }) => [s.btn, solid ? s.btnSolid : s.btnLine, pressed && { opacity: 0.8 }, disabled && { opacity: 0.35 }, style]}
@@ -30,13 +31,14 @@ export function Btn({ title, onPress, kind = 'solid', icon, style, disabled }) {
   );
 }
 
-export const IconBtn = ({ name, onPress, solid, size = 40, style, disabled }) => (
+export const IconBtn = ({ name, onPress, solid, size = 44, style, disabled, accessibilityLabel }) => (
   <Pressable
+    accessibilityRole="button" accessibilityLabel={accessibilityLabel || ({ x: 'Close', plus: 'Increase', minus: 'Decrease', 'trash-2': 'Remove' }[name] || name)} accessibilityState={{ disabled: !!disabled }}
     disabled={disabled}
     onPress={() => { tap(); onPress && onPress(); }}
     hitSlop={8}
     style={({ pressed }) => [
-      { width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center',
+      { width: Math.max(44, size), height: Math.max(44, size), borderRadius: size / 2, alignItems: 'center', justifyContent: 'center',
         borderWidth: 1, borderColor: solid ? C.ink : C.ink, backgroundColor: solid ? C.ink : 'transparent' },
       pressed && { opacity: 0.7 }, disabled && { opacity: 0.25 }, style,
     ]}
@@ -47,7 +49,7 @@ export const IconBtn = ({ name, onPress, solid, size = 40, style, disabled }) =>
 
 export function Stat({ label, value, sub, active, onPress }) {
   return (
-    <Pressable onPress={onPress} style={{ flex: 1 }}>
+    <Pressable accessibilityRole={onPress ? "button" : undefined} onPress={onPress} style={{ flex: 1 }}>
       <View style={[s.stat, active ? s.cardActive : s.statIdle]}>
         <Text style={s.statLabel}>{label}</Text>
         <Text style={s.statValue}>{value}</Text>
@@ -60,6 +62,7 @@ export function Stat({ label, value, sub, active, onPress }) {
 export function Chip({ title, active, onPress, tone }) {
   return (
     <Pressable
+      accessibilityRole="button" accessibilityState={{ selected: !!active }}
       onPress={() => { tap(); onPress && onPress(); }}
       style={[s.chip, active && { backgroundColor: C.ink, borderColor: C.ink }]}
     >
@@ -73,7 +76,7 @@ export function Field({ label, style, lines, ...p }) {
   return (
     <View style={[{ marginBottom: 16 }, style]}>
       {!!label && <Label style={{ marginBottom: 6 }}>{label}</Label>}
-      <TextInput placeholderTextColor={C.muted} {...p} style={[s.input, p.multiline && { height: lines ? lines * 21 + 26 : 110, textAlignVertical: 'top', paddingTop: 12 }]} />
+      <TextInput accessibilityLabel={label || p.placeholder} placeholderTextColor={C.muted} {...p} style={[s.input, p.multiline && { height: lines ? lines * 21 + 26 : 110, textAlignVertical: 'top', paddingTop: 12 }]} />
     </View>
   );
 }
@@ -84,7 +87,7 @@ export function Segmented({ options, value, onChange }) {
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <Pressable key={o.value} onPress={() => { tap(); onChange(o.value); }} style={[s.segItem, on && s.segOn]}>
+          <Pressable accessibilityRole="radio" accessibilityState={{ checked: on }} key={o.value} onPress={() => { tap(); onChange(o.value); }} style={[s.segItem, on && s.segOn]}>
             <Text style={[s.segText, on && { color: C.card }]}>{o.label}</Text>
           </Pressable>
         );
@@ -96,15 +99,15 @@ export function Segmented({ options, value, onChange }) {
 export const Hair = ({ style }) => <View style={[{ height: StyleSheet.hairlineWidth * 1.5, backgroundColor: C.line }, style]} />;
 
 const s = StyleSheet.create({
-  label: { fontFamily: F.med, fontSize: 10.5, letterSpacing: 2.2, color: C.muted, textTransform: 'uppercase' },
-  heading: { fontFamily: F.heavy, color: C.ink, letterSpacing: -1.4, textTransform: 'uppercase' },
+  label: { fontFamily: F.med, fontSize: 11, letterSpacing: 1.1, color: C.muted, textTransform: 'uppercase' },
+  heading: { fontFamily: F.semi, color: C.ink, letterSpacing: -0.7 },
   card: { backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 16 },
   cardActive: { borderColor: C.ink, borderWidth: 1.5, backgroundColor: C.card },
   cardSoft: { backgroundColor: C.wash, borderColor: 'transparent' },
   btn: { height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', paddingHorizontal: 22 },
   btnSolid: { backgroundColor: C.ink },
   btnLine: { borderWidth: 1.5, borderColor: C.ink, backgroundColor: 'transparent' },
-  btnText: { fontFamily: F.semi, fontSize: 12.5, letterSpacing: 2, textTransform: 'uppercase' },
+  btnText: { fontFamily: F.semi, fontSize: 14, letterSpacing: 0.2 },
   stat: { borderRadius: 16, borderWidth: 1, padding: 12, paddingBottom: 10, backgroundColor: C.card },
   statIdle: { borderColor: C.line },
   statLabel: { fontFamily: F.med, fontSize: 9, letterSpacing: 1.6, color: C.soft, textTransform: 'uppercase' },
@@ -117,5 +120,5 @@ const s = StyleSheet.create({
   seg: { flexDirection: 'row', borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 3, backgroundColor: C.card },
   segItem: { flex: 1, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: C.ink },
-  segText: { fontFamily: F.semi, fontSize: 10.5, letterSpacing: 1.4, color: C.soft, textTransform: 'uppercase' },
+  segText: { fontFamily: F.semi, fontSize: 12, letterSpacing: 0, color: C.soft },
 });

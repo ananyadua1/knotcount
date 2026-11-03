@@ -5,7 +5,7 @@ import { C, F, shadow } from '../theme';
 import { Label, Heading, Stat, Btn, Card, Field, tap } from '../components/ui';
 import { Person } from '../components/art';
 import { useStore, reminderText, compose } from '../store';
-import { sendChat } from '../send';
+import { sendChat, confirmSent } from '../send';
 import { api } from '../api';
 import Rsvp from './Rsvp';
 
@@ -20,22 +20,26 @@ const ago = (t) => {
 
 export default function Updates() {
   const { guests, stats, wedding, setWedding, updateGuest, respond, mail, refresh } = useStore();
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [sending, setSending] = useState(null);
   const [edit, setEdit] = useState(false);
   const [log, setLog] = useState(false);
   const emailAll = async () => {
-    try { const r = await api('POST', '/api/reminders/email'); Alert.alert('Reminders sent', `${r.sent} email${r.sent === 1 ? '' : 's'} sent${r.failed ? `, ${r.failed} failed` : ''}.`); refresh(); }
-    catch (e) { Alert.alert('Could not send', e.message); }
+    if (emailBusy) return; setEmailBusy(true);
+    try { const r = await api('POST', '/api/reminders/email'); Alert.alert(r.queued ? 'Reminders queued' : 'No reminders due', r.queued ? `${r.queued} reminder${r.queued === 1 ? '' : 's'} will be sent shortly. Recently contacted guests are skipped.` : 'Guests must be invited, have an email, and not have received a reminder in the last day.'); refresh(); }
+    catch (e) { Alert.alert('Could not send', e.message); } finally { setEmailBusy(false); }
   };
   const pending = guests.filter((g) => g.status === 'pending');
   const replied = guests.filter((g) => g.respondedAt).sort((a, b) => b.respondedAt - a.respondedAt).slice(0, 8);
   const toggle = (g, status) =>
     respond(g.id, status === 'confirmed'
       ? { status, attending: Math.min(g.attending || g.seats, g.seats) }
-      : { status, attending: 0 });
+      : { status, attending: 0 }).catch(e => Alert.alert('Could not save reply', e.message));
 
   const remind = async (g) => {
-    await sendChat(g, compose(reminderText(wedding), g, wedding));
-    updateGuest(g.id, { reminded: Date.now() });
+    if (sending) return; setSending(g.id);
+    try { if (await sendChat(g, compose(reminderText(wedding), g, wedding)) && await confirmSent()) await updateGuest(g.id, { reminded: Date.now() }); }
+    catch (e) { Alert.alert('Could not update reminder', e.message); } finally { setSending(null); }
   };
 
   return (
@@ -72,11 +76,11 @@ export default function Updates() {
           <View style={styles.autoRow}>
             <View style={{ flex: 1, paddingRight: 12 }}>
               <Text style={styles.autoT}>Remind by email every 3 days</Text>
-              <Text style={styles.note}>Sent automatically to pending guests who have an email.</Text>
+              <Text style={styles.note}>For invited guests with an email who have not replied. Manual emails are limited to once a day.</Text>
             </View>
             <Switch value={!!wedding.autoReminders} onValueChange={(v) => setWedding((w) => ({ ...w, autoReminders: v }))} trackColor={{ true: C.ink, false: C.line }} thumbColor={C.card} />
           </View>
-          <Btn title="Email all pending now" kind="line" icon="mail" onPress={emailAll} style={{ marginTop: 12 }} />
+          <Btn disabled={emailBusy} title={emailBusy ? 'Sending reminders…' : 'Email invited guests'} kind="line" icon="mail" onPress={emailAll} style={{ marginTop: 12 }} />
         </View>
       ) : null}
       <Text style={styles.note}>Each guest replies on their own link, so your totals update by themselves. WhatsApp reminders open ready-typed for you to send.</Text>

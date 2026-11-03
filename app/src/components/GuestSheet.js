@@ -10,14 +10,16 @@ const blank = { name: '', phone: '', email: '', side: 'bride', seats: 1, status:
 
 export default function GuestSheet({ guest, visible, onClose, onImport }) {
   const { addGuests, updateGuest, removeGuest } = useStore();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   const [g, setG] = useState(blank);
   const isNew = !guest || !guest.id;
 
-  useEffect(() => { if (visible) setG(guest && guest.id ? { ...guest } : { ...blank, ...(guest || {}) }); }, [visible, guest]);
+  useEffect(() => { if (visible) { setError(''); } if (visible) setG(guest && guest.id ? { ...guest } : { ...blank, ...(guest || {}) }); }, [visible, guest]);
   const set = (k, v) => setG((x) => ({ ...x, [k]: v }));
   // fewer seats can't leave more people coming than the invite covers
   const setSeats = (n) => setG((x) => {
-    const seats = Math.max(1, n);
+    const seats = Math.min(50, Math.max(1, n));
     if (x.status !== 'confirmed') return { ...x, seats };
     const s = fitSplit(splitOf(x), seats);
     return { ...x, seats, attending: s.veg + s.nonveg, vegCount: s.veg };
@@ -28,20 +30,22 @@ export default function GuestSheet({ guest, visible, onClose, onImport }) {
     return { ...x, status, attending: s.veg + s.nonveg, vegCount: s.veg };
   });
 
-  const save = () => {
+  const save = async () => {
+    if (busy) return;
     if (!g.name.trim()) return;
     const clean = { ...g, name: g.name.trim(), seats: Math.max(1, g.seats) };
     if (clean.status === 'confirmed') {
       const s = splitOf(clean);
       clean.attending = s.veg + s.nonveg; clean.vegCount = s.veg;
     } else { clean.attending = 0; clean.vegCount = null; }
-    if (isNew) addGuests([clean]); else updateGuest(g.id, clean);
-    onClose();
+    setBusy(true); setError('');
+    try { if (isNew) await addGuests([clean]); else await updateGuest(g.id, clean); onClose(); }
+    catch (e) { setError(e.message); } finally { setBusy(false); }
   };
   const del = () =>
     Alert.alert('Remove guest?', `${g.name} will be removed from the list.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => { removeGuest(g.id); onClose(); } },
+      { text: 'Remove', style: 'destructive', onPress: async () => { try { await removeGuest(g.id); onClose(); } catch (e) { setError(e.message); } } },
     ]);
 
   return (
@@ -100,7 +104,8 @@ export default function GuestSheet({ guest, visible, onClose, onImport }) {
               );
             })()}
             <View style={{ height: 22 }} />
-            <Btn title={isNew ? 'Add guest' : 'Save changes'} onPress={save} disabled={!g.name.trim()} />
+            {!!error && <Text accessibilityRole="alert" style={{ color: C.sindoor, marginBottom: 12 }}>{error}</Text>}
+            <Btn title={busy ? 'Saving…' : isNew ? 'Add guest' : 'Save changes'} onPress={save} disabled={busy || !g.name.trim()} />
             {!isNew && (
               <Pressable onPress={del} style={{ alignSelf: 'center', padding: 16 }}>
                 <Text style={{ fontFamily: F.semi, fontSize: 11, letterSpacing: 2, color: C.sindoor }}>REMOVE GUEST</Text>

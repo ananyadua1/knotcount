@@ -5,3 +5,7 @@ dist
 .env.local
 *.log
 .claude
+
+.test-postgres/
+.launch-audit-export/
+.test-output/

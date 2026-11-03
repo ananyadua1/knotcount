@@ -7,7 +7,7 @@ import { getBase, setServer, PRIVACY_URL } from '../api';
 
 const COPY = {
   login: { h: 'Welcome\nback.', lede: 'Sign in to see who has replied.' },
-  register: { h: 'Start your\nguest list.', lede: 'One account per wedding. Guests reply from a link, no app needed.' },
+  register: { h: 'Your guest list,\nbeautifully organised.', lede: 'Keep all your weddings in one place. Guests reply from a link, no app needed.' },
   forgot: { h: 'Forgot your\npassword?', lede: 'Enter the email you signed up with and we’ll send you a 6-digit code.' },
   reset: { h: 'Check your\nemail.', lede: 'Type the 6-digit code we sent, then choose a new password.' },
   verify: { h: 'Confirm your\nemail.', lede: 'We sent a 6-digit code to your email. Type it below to finish.' },

@@ -8,6 +8,7 @@ import { useStore } from '../store';
 
 export default function ImportSheet({ visible, onClose }) {
   const { addGuests, guests } = useStore();
+  const [busy, setBusy] = useState(false);
   const [all, setAll] = useState([]);
   const [sel, setSel] = useState({});
   const [q, setQ] = useState('');
@@ -16,7 +17,7 @@ export default function ImportSheet({ visible, onClose }) {
 
   useEffect(() => {
     if (!visible) return;
-    setSel({}); setQ(''); setMsg('Loading contacts…'); setBlocked(false);
+    setAll([]); setSel({}); setQ(''); setMsg('Loading contacts…'); setBlocked(false);
     (async () => {
       try {
         if (Platform.OS === 'web') { setMsg('Contacts are only available on the phone.'); return; }
@@ -39,9 +40,11 @@ export default function ImportSheet({ visible, onClose }) {
 
   const rows = useMemo(() => all.filter((c) => c.name.toLowerCase().includes(q.toLowerCase())), [all, q]);
   const n = Object.keys(sel).length;
-  const add = () => {
-    addGuests(all.filter((c) => sel[c.id]).map((c) => ({ name: c.name, phone: c.phone })));
-    onClose();
+  const add = async () => {
+    if (busy) return;
+    setBusy(true); setMsg('');
+    try { await addGuests(all.filter((c) => sel[c.id]).map((c) => ({ name: c.name, phone: c.phone })));
+    onClose(); } catch (e) { setMsg(e.message); } finally { setBusy(false); }
   };
 
   return (
@@ -69,7 +72,7 @@ export default function ImportSheet({ visible, onClose }) {
             );
           }}
         />
-        <View style={st.foot}><Btn title={n ? `Add ${n} guest${n > 1 ? 's' : ''}` : 'Select contacts'} onPress={add} disabled={!n} /></View>
+        <View style={st.foot}><Btn title={busy ? 'Adding guests…' : n ? `Add ${n} guest${n > 1 ? 's' : ''}` : 'Select contacts'} onPress={add} disabled={busy || !n || n > 1000} /></View>
       </View>
     </Modal>
   );

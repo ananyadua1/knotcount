@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node test/smoke.js"
+    "test": "node test/smoke.js && node test/regression.js",
+    "test:local": "npm --prefix tools/local-test install --silent && npm --prefix tools/local-test test"
   },
   "engines": {
     "node": ">=20"

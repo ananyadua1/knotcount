@@ -20,7 +20,7 @@ cd server
 npm install
 createdb knotcount
 DATABASE_URL=postgres://localhost/knotcount npm start      # http://localhost:3000
-npm test                                                     # optional: end-to-end checks
+npm run test:local                                           # all server tests on a throwaway database, no setup
 
 cd ../app
 npm install

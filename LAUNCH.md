@@ -34,7 +34,7 @@ On Render > knotcount-server > Environment. The server **refuses to start** with
 | `SUPPORT_EMAIL` | `domaincraftstudios@gmail.com` |
 | `MAIL_DAILY_LIMIT` | `90` (a free Gmail script sends about 100 a day) |
 
-**Free plan or paid?** `render.yaml` now says `plan: starter` (about $7 a month). The free plan sleeps after 15 minutes idle, so the first guest to open a link can wait about 30 seconds, and Render's free plan can be stopped without notice. For a real wedding, the paid plan is the safe choice. If you prefer free, change that line back to `plan: free` and use the uptime monitor in section 4 as a keep-awake ping.
+**Free plan (what this project uses).** Render's free plan sleeps after 15 minutes idle, and waking takes up to a minute. The app waits for it, and the guest page shows "Opening your invitation... this can take up to a minute" and keeps retrying, so nobody sees an error. Do step 1 of section 4 (a free uptime monitor pinging `/health` every 5 minutes) and the server stays awake, so guests do not wait at all. Render gives a free service about 750 hours a month, which covers a full month of staying awake.
 
 ## 3. Deploying and rolling back
 

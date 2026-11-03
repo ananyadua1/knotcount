@@ -2,14 +2,34 @@ import pg from 'pg';
 
 const url = process.env.DATABASE_URL || 'postgres://postgres@localhost:5432/knotcount';
 const useSsl = process.env.PGSSL === 'true' || /sslmode=require/.test(url) || /neon\.tech|supabase\.co/.test(url);
+const connection = new URL(url);
+// pg connection-string SSL options otherwise replace the verified TLS settings.
+if (useSsl) for (const key of ['sslmode', 'sslcert', 'sslkey', 'sslrootcert']) connection.searchParams.delete(key);
 
 export const pool = new pg.Pool({
-  connectionString: url,
-  ssl: useSsl ? { rejectUnauthorized: false } : undefined,
+  connectionString: connection.toString(),
+  ssl: useSsl ? { rejectUnauthorized: true } : undefined,
   max: 8,
+  connectionTimeoutMillis: 10000,
+  idleTimeoutMillis: 30000,
+  statement_timeout: 15000,
 });
+pool.on('error', (error) => console.error('Idle database connection failed:', error.message));
 
 export const q = (text, params) => pool.query(text, params);
+
+export async function transaction(fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn((sql, params) => client.query(sql, params));
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+}
 
 export async function migrate() {
   await q(`
@@ -64,6 +84,14 @@ export async function migrate() {
     ALTER TABLE events DROP CONSTRAINT IF EXISTS events_user_id_key;
     CREATE INDEX IF NOT EXISTS events_user_idx ON events(user_id);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INT NOT NULL DEFAULT 0;
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS guest_note TEXT NOT NULL DEFAULT '';
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS email_claimed_at TIMESTAMPTZ;
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS reminder_requested_at TIMESTAMPTZ;
+    CREATE TABLE IF NOT EXISTS mail_budget (
+      day DATE PRIMARY KEY,
+      used INT NOT NULL DEFAULT 0
+    );
     CREATE TABLE IF NOT EXISTS email_verifications (
       user_id    INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       code_hash  TEXT NOT NULL,

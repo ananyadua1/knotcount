@@ -21,6 +21,8 @@ export default function Rsvp({ onClose }) {
   const [veg, setVeg] = useState(1);
   const [nonveg, setNonveg] = useState(0);
   const [mins, setMins] = useState(19 * 60);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
   const g = guests.find((x) => x.id === id);
@@ -28,17 +30,19 @@ export default function Rsvp({ onClose }) {
     if (!g) return;
     const s = splitOf(g);
     setYes(g.status !== 'declined'); setVeg(s.veg); setNonveg(s.nonveg);
-    if (g.arrival) setMins(g.arrival); setDone(false);
+    setMins(g.arrival ?? 19 * 60); setDone(false); setError('');
   }, [id]);
 
   const rows = useMemo(() => guests.filter((x) => x.name.toLowerCase().includes(q.toLowerCase())).sort((a, b) => (a.status === 'pending' ? -1 : 1) - (b.status === 'pending' ? -1 : 1) || a.name.localeCompare(b.name)), [guests, q]);
 
   const n = veg + nonveg;
-  const confirm = () => {
-    respond(g.id, yes
+  const confirm = async () => {
+    if (busy) return;
+    setBusy(true); setError('');
+    try { await respond(g.id, yes
       ? { status: 'confirmed', attending: n, vegCount: veg, arrival: mins }
       : { status: 'declined', attending: 0 });
-    setDone(true);
+    setDone(true); } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
   return (
@@ -104,7 +108,8 @@ export default function Rsvp({ onClose }) {
               </View>
             </>
           )}
-          <Btn title={yes ? `Confirm · ${n} guest${n > 1 ? 's' : ''}` : 'Confirm · not attending'} onPress={confirm} style={{ marginTop: 30 }} />
+          <Text accessibilityRole="alert" style={{ color: C.sindoor, marginTop: 12 }}>{error}</Text>
+          <Btn disabled={busy} title={busy ? 'Saving…' : yes ? `Confirm · ${n} guest${n > 1 ? 's' : ''}` : 'Confirm · not attending'} onPress={confirm} style={{ marginTop: 30 }} />
         </>
       )}
 

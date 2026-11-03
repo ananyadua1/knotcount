@@ -20,10 +20,10 @@
 <p>To run the app: show your list and totals, produce guest links, and (if enabled by you) send reminder emails to guests you added. We do not sell your data, show ads, or use it for advertising or analytics. We do not use third-party trackers in the app.</p>
 
 <h2>Where it is stored and who processes it</h2>
-<p>Data is stored in a PostgreSQL database and served by our hosting providers over encrypted (HTTPS) connections. Reminder emails, if used, go through an SMTP provider. Data is shared with these service providers only to operate the app, or if required by law.</p>
+<p>Data is stored in a PostgreSQL database and served by our hosting providers over encrypted (HTTPS) connections. Account verification, password reset, and reminder emails go through our configured email provider (Google Gmail relay or SMTP). The guest reply page loads fonts from Google Fonts. Data is shared with these service providers only to operate the app, or if required by law.</p>
 
 <h2>Retention and deletion</h2>
-<p>We keep your data until you delete your account. In the app, open the menu at the top right and choose Delete account. You can also delete your account from the web at <a href="/delete-account">/delete-account</a>. Deletion immediately and permanently removes your account, wedding details, guest list and all replies.</p>
+<p>We keep your data until you delete your account. In the app, open Profile and choose Delete account. You can also delete your account from the web at <a href="/delete-account">/delete-account</a>. Deletion removes your account, wedding details, guest list and replies from the active database immediately. Any retained provider backups expire under the hosting provider’s backup retention policy and are not used to restore deleted accounts for normal operation.</p>
 
 <h2>Guests</h2>
 <p>If you received an invitation link, the person who invited you controls your information and can remove it. Contact them, or us, to have it deleted.</p>
@@ -32,6 +32,6 @@
 <p>The app is not directed to children under 13.</p>
 
 <h2>Contact</h2>
-<p>Questions or requests: <a id="m" href="#">see the contact email on our Google Play listing</a>.</p>
+<p>Questions or requests: <a id="m" href="mailto:domaincraftstudios@gmail.com">domaincraftstudios@gmail.com</a>.</p>
 <script>fetch('/api/support').then(r=>r.json()).then(j=>{if(j.email){var a=document.getElementById('m');a.href='mailto:'+j.email;a.textContent=j.email}}).catch(function(){})</script>
 </main></body></html>

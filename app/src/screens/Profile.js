@@ -44,7 +44,7 @@ export default function Profile({ go }) {
   const signOut = () =>
     Alert.alert('Sign out?', 'Your weddings and guest lists stay safe on the server.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', onPress: logout },
+      { text: 'Sign out', onPress: () => logout().catch(e => Alert.alert('Could not sign out', e.message)) },
     ]);
 
   return (
@@ -105,6 +105,7 @@ export default function Profile({ go }) {
       <Pressable onPress={() => Linking.openURL(PRIVACY_URL())} style={styles.link}>
         <Feather name="shield" size={18} color={C.ink} /><Text style={styles.linkT}>Privacy policy</Text>
       </Pressable>
+      <Pressable accessibilityRole="link" onPress={() => Linking.openURL('mailto:domaincraftstudios@gmail.com').catch(() => Alert.alert('Contact support', 'domaincraftstudios@gmail.com'))} style={styles.link}><Feather name="help-circle" size={18} color={C.ink} /><Text style={styles.linkT}>Contact support</Text></Pressable>
       <Pressable onPress={signOut} style={styles.link}>
         <Feather name="log-out" size={18} color={C.ink} /><Text style={styles.linkT}>Sign out</Text>
       </Pressable>

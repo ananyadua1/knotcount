@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, TextInput } from 'react-native';
+import { View, Text, ScrollView, FlatList, Pressable, StyleSheet, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { C, F } from '../theme';
 import { Card, Label, Heading, Stat, Chip, Btn, tap } from '../components/ui';
@@ -33,7 +33,9 @@ function detail(g) {
 }
 
 export default function Guests({ go }) {
-  const { guests, stats, wedding } = useStore();
+  const { guests, stats, wedding, refresh } = useStore();
+  const [refreshing, setRefreshing] = useState(false);
+  const reload = async () => { setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); } };
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [sheet, setSheet] = useState({ open: false, guest: null });
@@ -51,7 +53,37 @@ export default function Guests({ go }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: 120 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <FlatList data={list} keyExtractor={g => String(g.id)}
+        contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: 32 }}
+        showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+        refreshing={refreshing} onRefresh={reload} initialNumToRender={20} windowSize={7}
+        renderItem={({ item: g }) => { const st = STATUS[g.status]; return (
+                <Pressable accessibilityRole="button" accessibilityLabel={`${g.name}, ${st.t}, ${detail(g)}`} style={styles.row} onPress={() => { tap(); setSheet({ open: true, guest: g }); }}>
+                  <View style={styles.avatar}><Person size={26} /></View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text numberOfLines={1} style={styles.gname}>{g.name}</Text>
+                    <Text numberOfLines={1} style={styles.gsub}>{detail(g)}</Text>
+                  </View>
+                  <View style={[styles.pill, { borderColor: st.tone }]}>
+                    <View style={[styles.pillDot, { backgroundColor: st.tone }]} />
+                    <Text style={styles.pillT}>{st.t}</Text>
+                  </View>
+                </Pressable>
+        ); }}
+        ListEmptyComponent={guests.length === 0 ? (
+          <View style={styles.empty}>
+            <View style={{ flexDirection: 'row' }}>{[0, 1, 2].map((i) => (
+              <View key={i} style={[styles.ghost, i && { marginLeft: -10 }]}><Person size={26} color={C.muted} /></View>
+            ))}</View>
+            <Text style={styles.emptyTitle}>No guests yet</Text>
+            <Text style={styles.emptyBody}>Add families one by one, or pull them in from your phone contacts. Each name covers however many guests you give it.</Text>
+            <Btn title="Import contacts" kind="line" icon="user-plus" onPress={() => setImp(true)} style={{ marginTop: 20 }} />
+          </View>
+        ) : list.length === 0 ? (
+          <Text style={[styles.emptyBody, { marginTop: 36, textAlign: 'center' }]}>No guests match.</Text>
+        ) : null}
+        ListHeaderComponent={<>
+
         {wedding.bride && wedding.groom ? (
           <Label style={{ marginTop: 22 }}>{couple(wedding)}</Label>
         ) : (
@@ -89,18 +121,6 @@ export default function Guests({ go }) {
           </Card>
         )}
 
-        <Pressable onPress={() => { tap(); go('invite'); }}>
-          <Card soft style={styles.nudge}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.nudgeT}>View invitations</Text>
-              <Label style={{ marginTop: 3, fontSize: 9.5 }}>
-                {stats.households ? `${stats.sent} of ${stats.households} sent` : 'Add guests to start sending'}
-              </Label>
-            </View>
-            <Feather name="chevron-right" size={20} color={C.ink} />
-          </Card>
-        </Pressable>
-
         <View style={styles.guestsHead}>
           <Label>Guests</Label>
           <Btn title="Add guests" icon="plus" onPress={() => setSheet({ open: true, guest: null })} style={{ height: 40, paddingHorizontal: 16 }} />
@@ -116,38 +136,8 @@ export default function Guests({ go }) {
           {FILTERS.map((f) => <Chip key={f.k} title={f.t} tone={f.tone} active={filter === f.k} onPress={() => setFilter(f.k)} />)}
         </ScrollView>
 
-        {guests.length === 0 ? (
-          <View style={styles.empty}>
-            <View style={{ flexDirection: 'row' }}>{[0, 1, 2].map((i) => (
-              <View key={i} style={[styles.ghost, i && { marginLeft: -10 }]}><Person size={26} color={C.muted} /></View>
-            ))}</View>
-            <Text style={styles.emptyTitle}>No guests yet</Text>
-            <Text style={styles.emptyBody}>Add families one by one, or pull them in from your phone contacts. Each name covers however many guests you give it.</Text>
-            <Btn title="Import contacts" kind="line" icon="user-plus" onPress={() => setImp(true)} style={{ marginTop: 20 }} />
-          </View>
-        ) : list.length === 0 ? (
-          <Text style={[styles.emptyBody, { marginTop: 36, textAlign: 'center' }]}>No guests match.</Text>
-        ) : (
-          <View style={{ marginTop: 6 }}>
-            {list.map((g) => {
-              const st = STATUS[g.status];
-              return (
-                <Pressable key={g.id} style={styles.row} onPress={() => { tap(); setSheet({ open: true, guest: g }); }}>
-                  <View style={styles.avatar}><Person size={26} /></View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text numberOfLines={1} style={styles.gname}>{g.name}</Text>
-                    <Text numberOfLines={1} style={styles.gsub}>{detail(g)}</Text>
-                  </View>
-                  <View style={[styles.pill, { borderColor: st.tone }]}>
-                    <View style={[styles.pillDot, { backgroundColor: st.tone }]} />
-                    <Text style={styles.pillT}>{st.t}</Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
+        </>}
+      />
       <GuestSheet visible={sheet.open} guest={sheet.guest} onClose={() => setSheet({ open: false, guest: null })} onImport={() => setTimeout(() => setImp(true), 350)} />
       <GuestTotals visible={totals} onClose={() => setTotals(false)} />
       <ImportSheet visible={imp} onClose={() => setImp(false)} />

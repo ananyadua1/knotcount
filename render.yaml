@@ -3,8 +3,9 @@ services:
     name: knotcount-server
     runtime: node
     plan: free
+    autoDeploy: true
     rootDir: server
-    buildCommand: npm install
+    buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /health
     envVars:
@@ -13,6 +14,14 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: PUBLIC_URL
+        sync: false
+      - key: SUPPORT_EMAIL
+        value: domaincraftstudios@gmail.com
+      - key: MAIL_DAILY_LIMIT
+        value: "90"
+      - key: MAIL_WEBHOOK_URL
+        sync: false
+      - key: MAIL_WEBHOOK_SECRET
         sync: false
       - key: NODE_ENV
         value: production

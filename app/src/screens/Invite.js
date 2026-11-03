@@ -5,9 +5,10 @@ import { C, F, shadow } from '../theme';
 import { Label, Heading, Btn, Field, Chip, tap } from '../components/ui';
 import InviteCard, { PALETTES, SWATCHES, themeOf, isHex } from '../components/InviteCard';
 import { useStore, MESSAGES, inviteText, msgStyleOf, wordingOf, compose } from '../store';
-import { sendChat } from '../send';
+import { sendChat, confirmSent } from '../send';
 
 export default function Invite() {
+  const [sending, setSending] = useState(null);
   const { wedding, setWedding, guests, updateGuest } = useStore();
   const set = (k) => (v) => setWedding((w) => ({ ...w, [k]: v }));
   const design = wedding.template || 'classic';
@@ -18,7 +19,7 @@ export default function Invite() {
 
   // the colour box keeps what is being typed; it only becomes the card colour once it is a full #rrggbb
   const [hex, setHex] = useState(wedding.color || '');
-  useEffect(() => { if (isHex(wedding.color)) setHex(wedding.color); }, [wedding.color]);
+  useEffect(() => { setHex(wedding.color || ''); }, [wedding.color]);
   const pickColor = (c) => { setHex(c); setWedding((w) => ({ ...w, template: 'custom', color: c })); };
   const typeHex = (v) => {
     const s = v.startsWith('#') ? v : `#${v}`;
@@ -35,8 +36,12 @@ export default function Invite() {
 
   const send = async (g) => {
     if (!text.trim()) { Alert.alert('Write your invitation first', 'Paste or type the text you want to send in the box above.'); return; }
-    const ok = await sendChat(g, compose(text, g, wedding));
-    if (ok) updateGuest(g.id, { invited: true });
+    if (sending) return;
+    setSending(g.id);
+    try { const ok = await sendChat(g, compose(text, g, wedding));
+      if (ok && await confirmSent()) await updateGuest(g.id, { invited: true });
+    } catch (e) { Alert.alert('Could not update invitation', e.message); }
+    finally { setSending(null); }
   };
 
   const customOn = design === 'custom';
@@ -103,7 +108,7 @@ export default function Invite() {
       </View>
 
       <Label style={{ marginTop: 32 }}>3 · Choose a message</Label>
-      <Text style={styles.hint}>This is the text that goes with the card on WhatsApp. Each guest’s own reply link is added at the end.</Text>
+      <Text style={styles.hint}>This message opens in WhatsApp. Your invitation design appears when guests open their link. Each guest’s own reply link is added at the end.</Text>
       <View style={styles.chips}>
         {MESSAGES.map((m) => <Chip key={m.k} title={m.t} active={style === m.k} onPress={() => pickMessage(m.k)} />)}
       </View>
@@ -134,7 +139,7 @@ export default function Invite() {
             <Text style={styles.gname}>{g.name}</Text>
             <Text style={styles.gsub}>{g.phone || 'No number · opens share sheet'}</Text>
           </View>
-          <Btn title="Send" icon="send" onPress={() => send(g)} style={{ height: 40, paddingHorizontal: 16 }} />
+          <Btn title={sending === g.id ? 'Opening…' : 'Send'} disabled={!!sending} icon="send" onPress={() => send(g)} style={{ height: 40, paddingHorizontal: 16 }} />
         </View>
       ))}
 
