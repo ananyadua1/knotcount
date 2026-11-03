@@ -17,8 +17,8 @@ import Updates from './src/screens/Updates';
 
 const TABS = [
   { k: 'guests', t: 'Guests', icon: 'users' },
-  { k: 'invite', t: 'Invite', icon: 'mail' },
-  { k: 'updates', t: 'Updates', icon: 'activity' },
+  { k: 'invite', t: 'Invitations', icon: 'mail' },
+  { k: 'updates', t: 'Activity', icon: 'activity' },
 ];
 
 function Shell() {

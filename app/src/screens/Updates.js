@@ -44,9 +44,9 @@ export default function Updates() {
       <Heading style={{ marginTop: 8 }}>RSVP{'\n'}updates.</Heading>
 
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 26 }}>
-        <Stat label="Confirmed" value={stats.people.coming} active />
+        <Stat label="Attending" value={stats.people.coming} active />
         <Stat label="Declined" value={stats.people.declined} />
-        <Stat label="Awaiting" value={stats.people.awaiting} />
+        <Stat label="Pending" value={stats.people.awaiting} />
       </View>
       <Text style={styles.meals}>
         For the caterer: <Text style={styles.mb}>{stats.people.veg} veg</Text>  ·  <Text style={styles.mb}>{stats.people.nonveg} non-veg</Text>

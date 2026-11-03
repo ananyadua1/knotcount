@@ -45,12 +45,13 @@ export const IconBtn = ({ name, onPress, solid, size = 40, style, disabled }) =>
   </Pressable>
 );
 
-export function Stat({ label, value, active, onPress }) {
+export function Stat({ label, value, sub, active, onPress }) {
   return (
     <Pressable onPress={onPress} style={{ flex: 1 }}>
       <View style={[s.stat, active ? s.cardActive : s.statIdle]}>
         <Text style={s.statLabel}>{label}</Text>
         <Text style={s.statValue}>{value}</Text>
+        {!!sub && <Text style={s.statSub}>{sub}</Text>}
       </View>
     </Pressable>
   );
@@ -107,6 +108,7 @@ const s = StyleSheet.create({
   stat: { borderRadius: 16, borderWidth: 1, padding: 12, paddingBottom: 10, backgroundColor: C.card },
   statIdle: { borderColor: C.line },
   statLabel: { fontFamily: F.med, fontSize: 9, letterSpacing: 1.6, color: C.soft, textTransform: 'uppercase' },
+  statSub: { fontFamily: F.reg, fontSize: 10.5, color: C.muted, marginTop: 1 },
   statValue: { fontFamily: F.semi, fontSize: 30, color: C.ink, marginTop: 8, letterSpacing: -0.8 },
   chip: { flexDirection: 'row', alignItems: 'center', height: 34, borderRadius: 17, borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, marginRight: 8, backgroundColor: C.card },
   chipText: { fontFamily: F.semi, fontSize: 11, letterSpacing: 1.4, color: C.ink, textTransform: 'uppercase' },

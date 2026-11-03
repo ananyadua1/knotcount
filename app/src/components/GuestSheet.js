@@ -8,7 +8,7 @@ import { useStore, splitOf, fitSplit } from '../store';
 
 const blank = { name: '', phone: '', email: '', side: 'bride', seats: 1, status: 'pending', attending: 0, vegCount: null };
 
-export default function GuestSheet({ guest, visible, onClose }) {
+export default function GuestSheet({ guest, visible, onClose, onImport }) {
   const { addGuests, updateGuest, removeGuest } = useStore();
   const [g, setG] = useState(blank);
   const isNew = !guest || !guest.id;
@@ -58,6 +58,9 @@ export default function GuestSheet({ guest, visible, onClose }) {
             <IconBtn name="x" size={36} onPress={onClose} />
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {isNew && onImport && (
+              <Btn title="Import from contacts" kind="line" icon="user-plus" onPress={() => { onClose(); onImport(); }} style={{ marginBottom: 18 }} />
+            )}
             <Field label="Name" value={g.name} onChangeText={(v) => set('name', v)} placeholder="e.g. Sharma family" />
             <Field label="Phone (WhatsApp)" value={g.phone} onChangeText={(v) => set('phone', v)} keyboardType="phone-pad" placeholder="+91 98xxx xxxxx" />
             <Field label="Email (optional, for reminders)" value={g.email || ''} onChangeText={(v) => set('email', v)} keyboardType="email-address" autoCapitalize="none" placeholder="name@example.com" />
